@@ -112,6 +112,10 @@ export default function Settings() {
     fetchBranches();
   };
 
+  // Derived state for WhatsApp connection status
+  const currentBranch = branches.find((b) => b.id === selectedBranch);
+  const isConnected = currentBranch?.whatsapp_verified;
+
   return (
     <DashboardLayout>
       <div className="space-y-6">
