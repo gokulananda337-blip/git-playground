@@ -87,11 +87,11 @@ export default function Inventory() {
     const { error: transactionError } = await supabase.from("inventory_transactions").insert({
       user_id: session.session.user.id,
       item_id: selectedItem.id,
-      branch_id: selectedItem.branch_id,
+      branch_id: selectedItem.branch_id || null,
       quantity: actualQuantity,
-      transaction_type: type,
+      transaction_type: type as any,
       reference_type: "manual",
-      notes: formData.get("notes") as string,
+      notes: formData.get("notes") as string || null,
     });
 
     if (transactionError) {
