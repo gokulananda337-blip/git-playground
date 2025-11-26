@@ -23,8 +23,12 @@ const TodaysWork = () => {
     "16:00", "16:30", "17:00", "17:30", "18:00", "18:30", "19:00"
   ];
 
+  // Get today's date in local timezone
+  const todayLocal = format(new Date(), "yyyy-MM-dd");
+  const selectedDateLocal = format(selectedDate, "yyyy-MM-dd");
+
   const { data: bookings, refetch } = useQuery({
-    queryKey: ["today-bookings", selectedDateString],
+    queryKey: ["today-bookings", selectedDateLocal],
     queryFn: async () => {
       const { data, error } = await supabase
         .from("bookings")
@@ -33,7 +37,7 @@ const TodaysWork = () => {
           customers (name, phone),
           vehicles (vehicle_number, vehicle_type, brand, model)
         `)
-        .eq("booking_date", selectedDateString)
+        .eq("booking_date", selectedDateLocal)
         .order("booking_time", { ascending: true });
       
       if (error) throw error;
@@ -102,9 +106,9 @@ const TodaysWork = () => {
         </div>
 
         <div className="grid gap-3">
-          {timeSlots.map((slot) => {
+        {timeSlots.map((slot) => {
             // For the current day, hide past time slots
-            if (selectedDateString === todayString) {
+            if (selectedDateLocal === todayLocal) {
               const now = new Date();
               const [hours, minutes] = slot.split(":").map(Number);
               const slotTime = new Date();

@@ -517,6 +517,7 @@ export type Database = {
           duration_minutes: number
           id: string
           is_active: boolean | null
+          lifecycle_stages: Json | null
           materials_required: Json | null
           name: string
           updated_at: string
@@ -530,6 +531,7 @@ export type Database = {
           duration_minutes?: number
           id?: string
           is_active?: boolean | null
+          lifecycle_stages?: Json | null
           materials_required?: Json | null
           name: string
           updated_at?: string
@@ -543,6 +545,7 @@ export type Database = {
           duration_minutes?: number
           id?: string
           is_active?: boolean | null
+          lifecycle_stages?: Json | null
           materials_required?: Json | null
           name?: string
           updated_at?: string

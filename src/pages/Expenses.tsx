@@ -3,7 +3,7 @@ import { supabase } from "@/integrations/supabase/client";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
-import { Plus, Search, Pencil, Trash2, Filter } from "lucide-react";
+import { Plus, Search, Pencil, Trash2, Filter, Calendar as CalendarIcon } from "lucide-react";
 import DashboardLayout from "@/components/DashboardLayout";
 import { useToast } from "@/hooks/use-toast";
 import {
@@ -200,36 +200,37 @@ const Expenses = () => {
 
   return (
     <DashboardLayout>
-      <div className="p-6 space-y-6">
+      <div className="p-6 space-y-6 bg-gradient-to-br from-background via-secondary/20 to-background min-h-screen">
         <div className="flex justify-between items-center">
           <div>
-            <h1 className="text-3xl font-bold">Expenses</h1>
-            <p className="text-muted-foreground">Track your business expenses</p>
+            <h1 className="text-3xl font-bold text-foreground">Expenses</h1>
+            <p className="text-muted-foreground mt-1">Track and manage business expenses</p>
           </div>
           <Button
             onClick={() => {
               resetForm();
               setDialogOpen(true);
             }}
+            className="shadow-md hover:shadow-lg transition-all"
           >
             <Plus className="mr-2 h-4 w-4" />
             Add Expense
           </Button>
         </div>
 
-        <Card>
-          <CardHeader>
-            <CardTitle>Total Expenses</CardTitle>
+        <Card className="shadow-md border-border/50">
+          <CardHeader className="border-b bg-gradient-to-r from-primary/5 to-transparent">
+            <CardTitle className="text-xl">Total Expenses</CardTitle>
           </CardHeader>
-          <CardContent>
-            <div className="text-3xl font-bold text-primary">
+          <CardContent className="pt-6">
+            <div className="text-4xl font-bold text-primary">
               ₹{totalExpenses.toLocaleString()}
             </div>
           </CardContent>
         </Card>
 
-        <Card>
-          <CardHeader>
+        <Card className="shadow-md border-border/50">
+          <CardHeader className="border-b bg-muted/30">
             <div className="flex flex-col md:flex-row gap-4">
               <div className="flex items-center gap-2 flex-1">
                 <Search className="h-4 w-4 text-muted-foreground" />
@@ -237,10 +238,11 @@ const Expenses = () => {
                   placeholder="Search expenses..."
                   value={searchQuery}
                   onChange={(e) => setSearchQuery(e.target.value)}
+                  className="border-border/50"
                 />
               </div>
               <Select value={categoryFilter} onValueChange={setCategoryFilter}>
-                <SelectTrigger className="w-[200px]">
+                <SelectTrigger className="w-[200px] border-border/50">
                   <Filter className="h-4 w-4 mr-2" />
                   <SelectValue placeholder="Filter by category" />
                 </SelectTrigger>
@@ -255,28 +257,29 @@ const Expenses = () => {
               </Select>
             </div>
           </CardHeader>
-          <CardContent>
+          <CardContent className="pt-6">
             {loading ? (
-              <div className="text-center py-8">Loading...</div>
+              <div className="text-center py-8 text-muted-foreground">Loading...</div>
             ) : (
-              <div className="space-y-2">
+              <div className="space-y-3">
                 {filteredExpenses.map((expense) => (
                   <Card
                     key={expense.id}
-                    className="cursor-pointer hover:shadow-md transition-shadow"
+                    className="cursor-pointer hover:shadow-md transition-all border-border/50 hover:border-primary/30"
                     onClick={() => openDetailDialog(expense)}
                   >
                     <CardContent className="p-4">
-                      <div className="flex justify-between items-start">
-                        <div className="flex-1">
-                          <div className="flex items-center gap-2">
-                            <span className="font-semibold">{expense.category}</span>
-                            <span className="text-sm text-muted-foreground">
+                      <div className="flex items-start justify-between">
+                        <div className="space-y-2 flex-1">
+                          <div className="flex items-center gap-3">
+                            <span className="font-semibold text-foreground">{expense.category}</span>
+                            <span className="text-sm text-muted-foreground flex items-center gap-1">
+                              <CalendarIcon className="h-3 w-3" />
                               {format(new Date(expense.expense_date), "MMM dd, yyyy")}
                             </span>
                           </div>
                           {expense.description && (
-                            <p className="text-sm text-muted-foreground mt-1">
+                            <p className="text-sm text-muted-foreground">
                               {expense.description}
                             </p>
                           )}
@@ -290,6 +293,7 @@ const Expenses = () => {
                               variant="ghost"
                               size="icon"
                               onClick={() => openEditDialog(expense)}
+                              className="hover:bg-primary/10 hover:text-primary"
                             >
                               <Pencil className="h-4 w-4" />
                             </Button>
@@ -297,6 +301,7 @@ const Expenses = () => {
                               variant="ghost"
                               size="icon"
                               onClick={() => handleDelete(expense.id)}
+                              className="hover:bg-destructive/10 hover:text-destructive"
                             >
                               <Trash2 className="h-4 w-4" />
                             </Button>
@@ -328,7 +333,7 @@ const Expenses = () => {
                     setFormData({ ...formData, category: value })
                   }
                 >
-                  <SelectTrigger>
+                  <SelectTrigger className="border-border/50">
                     <SelectValue placeholder="Select category" />
                   </SelectTrigger>
                   <SelectContent>
@@ -348,6 +353,7 @@ const Expenses = () => {
                     setFormData({ ...formData, description: e.target.value })
                   }
                   placeholder="Brief description"
+                  className="border-border/50"
                 />
               </div>
               <div>
@@ -359,6 +365,7 @@ const Expenses = () => {
                     setFormData({ ...formData, amount: e.target.value })
                   }
                   placeholder="1000"
+                  className="border-border/50"
                 />
               </div>
               <div>
@@ -368,22 +375,25 @@ const Expenses = () => {
                     <Button
                       variant="outline"
                       className={cn(
-                        "w-full justify-start text-left font-normal",
+                        "w-full justify-start text-left font-normal border-border/50",
                         !formData.expense_date && "text-muted-foreground"
                       )}
                     >
+                      <CalendarIcon className="mr-2 h-4 w-4" />
                       {formData.expense_date
                         ? format(formData.expense_date, "PPP")
                         : "Pick a date"}
                     </Button>
                   </PopoverTrigger>
-                  <PopoverContent className="w-auto p-0">
+                  <PopoverContent className="w-auto p-0" align="start">
                     <Calendar
                       mode="single"
                       selected={formData.expense_date}
                       onSelect={(date) =>
                         date && setFormData({ ...formData, expense_date: date })
                       }
+                      initialFocus
+                      className="pointer-events-auto"
                     />
                   </PopoverContent>
                 </Popover>
@@ -396,7 +406,7 @@ const Expenses = () => {
                     setFormData({ ...formData, payment_method: value })
                   }
                 >
-                  <SelectTrigger>
+                  <SelectTrigger className="border-border/50">
                     <SelectValue placeholder="Select payment method" />
                   </SelectTrigger>
                   <SelectContent>
@@ -416,6 +426,7 @@ const Expenses = () => {
                     setFormData({ ...formData, notes: e.target.value })
                   }
                   placeholder="Additional notes"
+                  className="border-border/50"
                 />
               </div>
             </div>
@@ -423,7 +434,7 @@ const Expenses = () => {
               <Button variant="outline" onClick={() => setDialogOpen(false)}>
                 Cancel
               </Button>
-              <Button onClick={handleSubmit}>
+              <Button onClick={handleSubmit} className="shadow-md">
                 {selectedExpense ? "Update" : "Create"}
               </Button>
             </DialogFooter>
@@ -452,7 +463,7 @@ const Expenses = () => {
                 </div>
                 <div>
                   <Label className="text-muted-foreground">Amount</Label>
-                  <p className="text-2xl font-bold text-primary">
+                  <p className="text-3xl font-bold text-primary">
                     ₹{selectedExpense.amount.toLocaleString()}
                   </p>
                 </div>

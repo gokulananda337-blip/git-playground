@@ -8,130 +8,128 @@ All colors MUST be HSL.
 
 @layer base {
   :root {
+    /* Zoho-inspired: Clean white backgrounds */
     --background: 0 0% 100%;
-    --foreground: 222 47% 11%;
+    --foreground: 214 20% 20%;
 
     --card: 0 0% 100%;
-    --card-foreground: 222 47% 11%;
+    --card-foreground: 214 20% 20%;
 
     --popover: 0 0% 100%;
-    --popover-foreground: 222 47% 11%;
+    --popover-foreground: 214 20% 20%;
 
-    /* Yellow primary - energetic and professional */
-    --primary: 45 97% 54%;
-    --primary-foreground: 222 47% 11%;
+    /* Zoho blue - professional and trustworthy */
+    --primary: 215 98% 51%;
+    --primary-foreground: 0 0% 100%;
 
-    --secondary: 210 17% 95%;
-    --secondary-foreground: 222 47% 11%;
+    --secondary: 214 20% 95%;
+    --secondary-foreground: 214 20% 20%;
 
-    --muted: 210 17% 95%;
-    --muted-foreground: 215 16% 47%;
+    --muted: 214 15% 96%;
+    --muted-foreground: 214 12% 45%;
 
-    --accent: 36 100% 50%;
-    --accent-foreground: 222 47% 11%;
+    --accent: 214 100% 50%;
+    --accent-foreground: 0 0% 100%;
 
-    --destructive: 0 84% 60%;
-    --destructive-foreground: 0 0% 98%;
+    --destructive: 0 70% 50%;
+    --destructive-foreground: 0 0% 100%;
 
-    --border: 214 32% 91%;
-    --input: 214 32% 91%;
-    --ring: 45 97% 54%;
+    --border: 214 15% 88%;
+    --input: 214 15% 92%;
+    --ring: 215 98% 51%;
 
-    --success: 142 76% 36%;
-    --success-foreground: 0 0% 98%;
+    --success: 142 71% 45%;
+    --success-foreground: 0 0% 100%;
 
-    --warning: 38 92% 50%;
-    --warning-foreground: 222 47% 11%;
+    --warning: 35 91% 55%;
+    --warning-foreground: 0 0% 100%;
 
     --info: 199 89% 48%;
-    --info-foreground: 0 0% 98%;
+    --info-foreground: 0 0% 100%;
 
-    --radius: 0.5rem;
+    --radius: 0.375rem;
 
-    /* Gradients */
-    --gradient-primary: linear-gradient(135deg, hsl(45 97% 54%) 0%, hsl(38 92% 50%) 100%);
-    --gradient-secondary: linear-gradient(180deg, hsl(0 0% 100%) 0%, hsl(210 17% 98%) 100%);
+    /* Zoho-style gradients */
+    --gradient-primary: linear-gradient(135deg, hsl(215 98% 51%) 0%, hsl(215 85% 60%) 100%);
+    --gradient-secondary: linear-gradient(180deg, hsl(0 0% 100%) 0%, hsl(214 20% 98%) 100%);
+    --gradient-hero: linear-gradient(135deg, hsl(215 98% 51%) 0%, hsl(215 70% 40%) 100%);
 
-    /* Shadows */
-    --shadow-sm: 0 1px 2px 0 rgba(0, 0, 0, 0.05);
-    --shadow-md: 0 4px 6px -1px rgba(0, 0, 0, 0.1);
-    --shadow-lg: 0 10px 15px -3px rgba(0, 0, 0, 0.1);
-    --shadow-yellow: 0 4px 14px 0 rgba(253, 184, 19, 0.39);
+    /* Zoho-style shadows - subtle and clean */
+    --shadow-sm: 0 1px 2px 0 rgba(0, 0, 0, 0.04);
+    --shadow-md: 0 2px 8px 0 rgba(0, 0, 0, 0.08);
+    --shadow-lg: 0 8px 16px 0 rgba(0, 0, 0, 0.1);
+    --shadow-blue: 0 4px 12px 0 rgba(37, 99, 235, 0.15);
 
-    /* Transitions */
-    --transition-base: all 0.2s cubic-bezier(0.4, 0, 0.2, 1);
-    --transition-smooth: all 0.3s cubic-bezier(0.4, 0, 0.2, 1);
+    /* Smooth transitions */
+    --transition-base: all 0.15s cubic-bezier(0.4, 0, 0.2, 1);
+    --transition-smooth: all 0.25s cubic-bezier(0.4, 0, 0.2, 1);
 
-    --sidebar-background: 0 0% 98%;
-
-    --sidebar-foreground: 240 5.3% 26.1%;
-
-    --sidebar-primary: 240 5.9% 10%;
-
-    --sidebar-primary-foreground: 0 0% 98%;
-
-    --sidebar-accent: 240 4.8% 95.9%;
-
-    --sidebar-accent-foreground: 240 5.9% 10%;
-
-    --sidebar-border: 220 13% 91%;
-
-    --sidebar-ring: 217.2 91.2% 59.8%;
+    /* Sidebar - Zoho style */
+    --sidebar-background: 214 25% 98%;
+    --sidebar-foreground: 214 20% 25%;
+    --sidebar-primary: 215 98% 51%;
+    --sidebar-primary-foreground: 0 0% 100%;
+    --sidebar-accent: 214 20% 94%;
+    --sidebar-accent-foreground: 214 20% 25%;
+    --sidebar-border: 214 15% 90%;
+    --sidebar-ring: 215 98% 51%;
   }
 
   .dark {
-    --background: 222 47% 11%;
+    --background: 220 20% 14%;
     --foreground: 210 17% 98%;
 
-    --card: 222 47% 14%;
+    --card: 220 20% 17%;
     --card-foreground: 210 17% 98%;
 
-    --popover: 222 47% 14%;
+    --popover: 220 20% 17%;
     --popover-foreground: 210 17% 98%;
 
-    --primary: 45 97% 54%;
-    --primary-foreground: 222 47% 11%;
+    --primary: 215 98% 51%;
+    --primary-foreground: 0 0% 100%;
 
-    --secondary: 217 33% 18%;
+    --secondary: 220 15% 22%;
     --secondary-foreground: 210 17% 98%;
 
-    --muted: 217 33% 18%;
+    --muted: 220 15% 20%;
     --muted-foreground: 215 20% 65%;
 
-    --accent: 36 100% 50%;
-    --accent-foreground: 222 47% 11%;
+    --accent: 214 100% 50%;
+    --accent-foreground: 0 0% 100%;
 
-    --destructive: 0 63% 31%;
-    --destructive-foreground: 210 17% 98%;
+    --destructive: 0 70% 50%;
+    --destructive-foreground: 0 0% 100%;
 
-    --border: 217 33% 18%;
-    --input: 217 33% 18%;
-    --ring: 45 97% 54%;
+    --border: 220 15% 25%;
+    --input: 220 15% 22%;
+    --ring: 215 98% 51%;
 
-    --success: 142 76% 36%;
-    --success-foreground: 0 0% 98%;
+    --success: 142 71% 45%;
+    --success-foreground: 0 0% 100%;
 
-    --warning: 38 92% 50%;
-    --warning-foreground: 222 47% 11%;
+    --warning: 35 91% 55%;
+    --warning-foreground: 0 0% 100%;
 
     --info: 199 89% 48%;
-    --info-foreground: 0 0% 98%;
+    --info-foreground: 0 0% 100%;
 
-    --gradient-primary: linear-gradient(135deg, hsl(45 97% 54%) 0%, hsl(38 92% 50%) 100%);
-    --gradient-secondary: linear-gradient(180deg, hsl(222 47% 14%) 0%, hsl(222 47% 11%) 100%);
+    --gradient-primary: linear-gradient(135deg, hsl(215 98% 51%) 0%, hsl(215 85% 60%) 100%);
+    --gradient-secondary: linear-gradient(180deg, hsl(220 20% 17%) 0%, hsl(220 20% 14%) 100%);
+    --gradient-hero: linear-gradient(135deg, hsl(215 98% 51%) 0%, hsl(215 70% 40%) 100%);
 
-    --shadow-sm: 0 1px 2px 0 rgba(0, 0, 0, 0.3);
-    --shadow-md: 0 4px 6px -1px rgba(0, 0, 0, 0.4);
-    --shadow-lg: 0 10px 15px -3px rgba(0, 0, 0, 0.5);
-    --shadow-yellow: 0 4px 14px 0 rgba(253, 184, 19, 0.6);
-    --sidebar-background: 240 5.9% 10%;
-    --sidebar-foreground: 240 4.8% 95.9%;
-    --sidebar-primary: 224.3 76.3% 48%;
+    --shadow-sm: 0 1px 2px 0 rgba(0, 0, 0, 0.4);
+    --shadow-md: 0 2px 8px 0 rgba(0, 0, 0, 0.5);
+    --shadow-lg: 0 8px 16px 0 rgba(0, 0, 0, 0.6);
+    --shadow-blue: 0 4px 12px 0 rgba(37, 99, 235, 0.3);
+
+    --sidebar-background: 220 20% 12%;
+    --sidebar-foreground: 210 17% 98%;
+    --sidebar-primary: 215 98% 51%;
     --sidebar-primary-foreground: 0 0% 100%;
-    --sidebar-accent: 240 3.7% 15.9%;
-    --sidebar-accent-foreground: 240 4.8% 95.9%;
-    --sidebar-border: 240 3.7% 15.9%;
-    --sidebar-ring: 217.2 91.2% 59.8%;
+    --sidebar-accent: 220 15% 18%;
+    --sidebar-accent-foreground: 210 17% 98%;
+    --sidebar-border: 220 15% 20%;
+    --sidebar-ring: 215 98% 51%;
   }
 }
 
