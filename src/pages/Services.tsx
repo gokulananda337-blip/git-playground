@@ -3,7 +3,7 @@ import { supabase } from "@/integrations/supabase/client";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
-import { Plus, Search, Pencil, Trash2 } from "lucide-react";
+import { Plus, Search, Pencil, Trash2, Package } from "lucide-react";
 import DashboardLayout from "@/components/DashboardLayout";
 import { useToast } from "@/hooks/use-toast";
 import {
@@ -15,14 +15,8 @@ import {
 } from "@/components/ui/dialog";
 import { Label } from "@/components/ui/label";
 import { Textarea } from "@/components/ui/textarea";
-import {
-  Select,
-  SelectContent,
-  SelectItem,
-  SelectTrigger,
-  SelectValue,
-} from "@/components/ui/select";
 import { Switch } from "@/components/ui/switch";
+import { Badge } from "@/components/ui/badge";
 
 interface Service {
   id: string;
@@ -32,8 +26,10 @@ interface Service {
   base_price: number;
   duration_minutes: number;
   is_active: boolean | null;
-  materials_required: any;
+  lifecycle_stages: any;
 }
+
+const DEFAULT_STAGES = ["check_in", "pre_wash", "foam_wash", "interior", "polishing", "qc", "completed", "delivered"];
 
 const Services = () => {
   const [services, setServices] = useState<Service[]>([]);
@@ -50,6 +46,7 @@ const Services = () => {
     base_price: "",
     duration_minutes: "30",
     is_active: true,
+    lifecycle_stages: DEFAULT_STAGES,
   });
   const { toast } = useToast();
 
@@ -156,6 +153,7 @@ const Services = () => {
       base_price: service.base_price.toString(),
       duration_minutes: service.duration_minutes.toString(),
       is_active: service.is_active ?? true,
+      lifecycle_stages: Array.isArray(service.lifecycle_stages) ? service.lifecycle_stages : DEFAULT_STAGES,
     });
     setDialogOpen(true);
   };
@@ -169,6 +167,7 @@ const Services = () => {
       base_price: "",
       duration_minutes: "30",
       is_active: true,
+      lifecycle_stages: DEFAULT_STAGES,
     });
   };
 
@@ -177,35 +176,46 @@ const Services = () => {
     setDetailDialogOpen(true);
   };
 
+  const toggleStage = (stage: string) => {
+    const stages = formData.lifecycle_stages.includes(stage)
+      ? formData.lifecycle_stages.filter(s => s !== stage)
+      : [...formData.lifecycle_stages, stage];
+    setFormData({ ...formData, lifecycle_stages: stages });
+  };
+
   return (
     <DashboardLayout>
-      <div className="p-6 space-y-6">
+      <div className="p-6 space-y-6 bg-gradient-to-br from-background via-secondary/20 to-background min-h-screen">
         <div className="flex justify-between items-center">
-          <h1 className="text-3xl font-bold">Services & Packages</h1>
+          <div>
+            <h1 className="text-3xl font-bold text-foreground">Services & Packages</h1>
+            <p className="text-muted-foreground mt-1">Manage wash services and lifecycle stages</p>
+          </div>
           <Button
             onClick={() => {
               resetForm();
               setDialogOpen(true);
             }}
+            className="shadow-md hover:shadow-lg transition-all"
           >
             <Plus className="mr-2 h-4 w-4" />
             Add Service
           </Button>
         </div>
 
-        <Card>
-          <CardHeader>
+        <Card className="shadow-md border-border/50">
+          <CardHeader className="border-b bg-muted/30">
             <div className="flex items-center gap-2">
               <Search className="h-4 w-4 text-muted-foreground" />
               <Input
                 placeholder="Search services..."
                 value={searchQuery}
                 onChange={(e) => setSearchQuery(e.target.value)}
-                className="max-w-sm"
+                className="max-w-sm border-border/50"
               />
             </div>
           </CardHeader>
-          <CardContent>
+          <CardContent className="pt-6">
             {loading ? (
               <div className="text-center py-8">Loading...</div>
             ) : (
@@ -213,17 +223,21 @@ const Services = () => {
                 {filteredServices.map((service) => (
                   <Card
                     key={service.id}
-                    className="cursor-pointer hover:shadow-lg transition-shadow"
+                    className="cursor-pointer hover:shadow-md transition-all border-border/50 hover:border-primary/30"
                     onClick={() => openDetailDialog(service)}
                   >
                     <CardHeader>
                       <CardTitle className="flex justify-between items-start">
-                        <span className="text-lg">{service.name}</span>
+                        <div className="flex items-center gap-2">
+                          <Package className="h-5 w-5 text-primary" />
+                          <span className="text-lg">{service.name}</span>
+                        </div>
                         <div className="flex gap-1" onClick={(e) => e.stopPropagation()}>
                           <Button
                             variant="ghost"
                             size="icon"
                             onClick={() => openEditDialog(service)}
+                            className="hover:bg-primary/10 hover:text-primary"
                           >
                             <Pencil className="h-4 w-4" />
                           </Button>
@@ -231,6 +245,7 @@ const Services = () => {
                             variant="ghost"
                             size="icon"
                             onClick={() => handleDelete(service.id)}
+                            className="hover:bg-destructive/10 hover:text-destructive"
                           >
                             <Trash2 className="h-4 w-4" />
                           </Button>
@@ -238,27 +253,30 @@ const Services = () => {
                       </CardTitle>
                     </CardHeader>
                     <CardContent>
-                      <div className="space-y-2">
+                      <div className="space-y-3">
                         {service.category && (
-                          <div className="text-sm text-muted-foreground">
+                          <Badge variant="outline" className="text-xs">
                             {service.category}
-                          </div>
+                          </Badge>
                         )}
                         <div className="text-2xl font-bold text-primary">
                           ₹{service.base_price}
                         </div>
-                        <div className="text-sm">
+                        <div className="text-sm text-muted-foreground">
                           Duration: {service.duration_minutes} mins
                         </div>
                         <div className="text-sm">
                           Status:{" "}
                           <span
                             className={
-                              service.is_active ? "text-success" : "text-destructive"
+                              service.is_active ? "text-success font-semibold" : "text-destructive font-semibold"
                             }
                           >
                             {service.is_active ? "Active" : "Inactive"}
                           </span>
+                        </div>
+                        <div className="text-xs text-muted-foreground">
+                          {service.lifecycle_stages?.length || 0} lifecycle stages
                         </div>
                       </div>
                     </CardContent>
@@ -271,7 +289,7 @@ const Services = () => {
 
         {/* Add/Edit Dialog */}
         <Dialog open={dialogOpen} onOpenChange={setDialogOpen}>
-          <DialogContent className="max-w-md">
+          <DialogContent className="max-w-2xl max-h-[90vh] overflow-y-auto">
             <DialogHeader>
               <DialogTitle>
                 {selectedService ? "Edit Service" : "Add New Service"}
@@ -286,6 +304,7 @@ const Services = () => {
                     setFormData({ ...formData, name: e.target.value })
                   }
                   placeholder="e.g., Premium Wash"
+                  className="border-border/50"
                 />
               </div>
               <div>
@@ -296,6 +315,7 @@ const Services = () => {
                     setFormData({ ...formData, category: e.target.value })
                   }
                   placeholder="e.g., Exterior Wash"
+                  className="border-border/50"
                 />
               </div>
               <div>
@@ -306,33 +326,59 @@ const Services = () => {
                     setFormData({ ...formData, description: e.target.value })
                   }
                   placeholder="Service description"
+                  className="border-border/50"
                 />
               </div>
+              <div className="grid grid-cols-2 gap-4">
+                <div>
+                  <Label>Base Price (₹) *</Label>
+                  <Input
+                    type="number"
+                    value={formData.base_price}
+                    onChange={(e) =>
+                      setFormData({ ...formData, base_price: e.target.value })
+                    }
+                    placeholder="500"
+                    className="border-border/50"
+                  />
+                </div>
+                <div>
+                  <Label>Duration (minutes) *</Label>
+                  <Input
+                    type="number"
+                    value={formData.duration_minutes}
+                    onChange={(e) =>
+                      setFormData({
+                        ...formData,
+                        duration_minutes: e.target.value,
+                      })
+                    }
+                    placeholder="30"
+                    className="border-border/50"
+                  />
+                </div>
+              </div>
+              
               <div>
-                <Label>Base Price (₹) *</Label>
-                <Input
-                  type="number"
-                  value={formData.base_price}
-                  onChange={(e) =>
-                    setFormData({ ...formData, base_price: e.target.value })
-                  }
-                  placeholder="500"
-                />
+                <Label className="mb-3 block">Lifecycle Stages *</Label>
+                <div className="grid grid-cols-2 gap-2 p-3 border rounded-lg border-border/50 bg-muted/20">
+                  {DEFAULT_STAGES.map((stage) => (
+                    <label key={stage} className="flex items-center gap-2 cursor-pointer p-2 hover:bg-accent/10 rounded">
+                      <input
+                        type="checkbox"
+                        checked={formData.lifecycle_stages.includes(stage)}
+                        onChange={() => toggleStage(stage)}
+                        className="rounded"
+                      />
+                      <span className="text-sm capitalize">{stage.replace("_", " ")}</span>
+                    </label>
+                  ))}
+                </div>
+                <p className="text-xs text-muted-foreground mt-2">
+                  Select stages that apply to this service. These will appear in job cards.
+                </p>
               </div>
-              <div>
-                <Label>Duration (minutes) *</Label>
-                <Input
-                  type="number"
-                  value={formData.duration_minutes}
-                  onChange={(e) =>
-                    setFormData({
-                      ...formData,
-                      duration_minutes: e.target.value,
-                    })
-                  }
-                  placeholder="30"
-                />
-              </div>
+
               <div className="flex items-center gap-2">
                 <Switch
                   checked={formData.is_active}
@@ -347,7 +393,7 @@ const Services = () => {
               <Button variant="outline" onClick={() => setDialogOpen(false)}>
                 Cancel
               </Button>
-              <Button onClick={handleSubmit}>
+              <Button onClick={handleSubmit} className="shadow-md">
                 {selectedService ? "Update" : "Create"}
               </Button>
             </DialogFooter>
@@ -381,7 +427,7 @@ const Services = () => {
                 <div className="grid grid-cols-2 gap-4">
                   <div>
                     <Label className="text-muted-foreground">Base Price</Label>
-                    <p className="text-xl font-bold text-primary">
+                    <p className="text-2xl font-bold text-primary">
                       ₹{selectedService.base_price}
                     </p>
                   </div>
@@ -390,6 +436,16 @@ const Services = () => {
                     <p className="text-xl font-bold">
                       {selectedService.duration_minutes} mins
                     </p>
+                  </div>
+                </div>
+                <div>
+                  <Label className="text-muted-foreground">Lifecycle Stages</Label>
+                  <div className="flex flex-wrap gap-2 mt-2">
+                    {selectedService.lifecycle_stages?.map((stage, idx) => (
+                      <Badge key={idx} variant="secondary" className="capitalize">
+                        {stage.replace("_", " ")}
+                      </Badge>
+                    ))}
                   </div>
                 </div>
                 <div>

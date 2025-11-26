@@ -10,14 +10,16 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@
 import { useToast } from "@/hooks/use-toast";
 import { supabase } from "@/integrations/supabase/client";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
-import { Plus, Search, User, Award, Clock, TrendingUp } from "lucide-react";
-import { useNavigate } from "react-router-dom";
+import { Plus, Search, User, Award, Users } from "lucide-react";
+
+const DEPARTMENTS = ["Operations", "Customer Service", "Maintenance", "Management", "Sales"];
 
 const Staff = () => {
   const [search, setSearch] = useState("");
   const [isAddOpen, setIsAddOpen] = useState(false);
   const [activeView, setActiveView] = useState<"staff" | "departments">("staff");
   const [departmentDialogOpen, setDepartmentDialogOpen] = useState(false);
+  const [selectedDept, setSelectedDept] = useState<string | null>(null);
   const [departmentForm, setDepartmentForm] = useState({
     name: "",
     phone: "",
@@ -26,13 +28,12 @@ const Staff = () => {
   });
   const { toast } = useToast();
   const queryClient = useQueryClient();
-  const navigate = useNavigate();
 
   const [formData, setFormData] = useState({
     full_name: "",
     email: "",
     phone: "",
-    role: "staff" as any
+    department: ""
   });
 
   const { data: staff, isLoading } = useQuery({
@@ -40,10 +41,7 @@ const Staff = () => {
     queryFn: async () => {
       const { data, error } = await supabase
         .from("profiles")
-        .select(`
-          *,
-          user_roles (role)
-        `)
+        .select("*")
         .order("created_at", { ascending: false });
       if (error) throw error;
       return data;
@@ -102,9 +100,40 @@ const Staff = () => {
     },
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ["departments"] });
-      toast({ title: "Department created" });
+      toast({ title: "Department created successfully" });
       setDepartmentDialogOpen(false);
       setDepartmentForm({ name: "", phone: "", email: "", address: "" });
+    },
+    onError: (error: any) => {
+      toast({ title: "Error", description: error.message, variant: "destructive" });
+    }
+  });
+
+  const addStaff = useMutation({
+    mutationFn: async (data: any) => {
+      const { data: { user } } = await supabase.auth.getUser();
+      if (!user) throw new Error("Not authenticated");
+
+      const { error } = await supabase.from("profiles").insert({
+        id: crypto.randomUUID(),
+        user_id: user.id,
+        full_name: data.full_name,
+        email: data.email,
+        phone: data.phone,
+        branch_id: data.department || null
+      });
+      if (error) throw error;
+    },
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ["staff"] });
+      toast({ title: "Staff member added successfully" });
+      setIsAddOpen(false);
+      setFormData({
+        full_name: "",
+        email: "",
+        phone: "",
+        department: ""
+      });
     },
     onError: (error: any) => {
       toast({ title: "Error", description: error.message, variant: "destructive" });
@@ -128,51 +157,26 @@ const Staff = () => {
     }
   });
 
-  const addStaff = useMutation({
-    mutationFn: async (data: any) => {
-      const { error } = await supabase.functions.invoke('create-staff', {
-        body: data
-      });
-      if (error) throw error;
-    },
-    onSuccess: () => {
-      queryClient.invalidateQueries({ queryKey: ["staff"] });
-      toast({ title: "Staff member created successfully", description: "Password reset email has been sent." });
-      setIsAddOpen(false);
-      setFormData({
-        full_name: "",
-        email: "",
-        phone: "",
-        role: "staff"
-      });
-    },
-    onError: (error: any) => {
-      toast({ title: "Error", description: error.message, variant: "destructive" });
-    }
-  });
-
   const filteredStaff = staff?.filter(s =>
     s.full_name?.toLowerCase().includes(search.toLowerCase()) ||
     s.phone?.toLowerCase().includes(search.toLowerCase())
   );
 
-  const roleColors: Record<string, string> = {
-    admin: "bg-purple-500",
-    manager: "bg-blue-500",
-    staff: "bg-green-500"
+  const getDeptMembers = (deptId: string) => {
+    return staff?.filter(s => (s as any).branch_id === deptId) || [];
   };
 
   return (
     <DashboardLayout>
-      <div className="p-6 space-y-6">
+      <div className="p-6 space-y-6 bg-gradient-to-br from-background via-secondary/20 to-background min-h-screen">
         <div className="flex justify-between items-start">
           <div>
-            <h1 className="text-3xl font-bold">Staff Management</h1>
-            <p className="text-muted-foreground">Manage team members and track performance</p>
+            <h1 className="text-3xl font-bold text-foreground">Staff Management</h1>
+            <p className="text-muted-foreground mt-1">Manage team members and departments</p>
           </div>
           <Dialog open={isAddOpen} onOpenChange={setIsAddOpen}>
             <DialogTrigger asChild>
-              <Button className="gap-2">
+              <Button className="gap-2 shadow-md hover:shadow-lg transition-all">
                 <Plus className="h-4 w-4" />
                 Add Staff
               </Button>
@@ -188,6 +192,7 @@ const Staff = () => {
                     placeholder="John Doe"
                     value={formData.full_name}
                     onChange={(e) => setFormData({ ...formData, full_name: e.target.value })}
+                    className="border-border/50"
                   />
                 </div>
                 <div className="space-y-2">
@@ -197,6 +202,7 @@ const Staff = () => {
                     placeholder="john@example.com"
                     value={formData.email}
                     onChange={(e) => setFormData({ ...formData, email: e.target.value })}
+                    className="border-border/50"
                   />
                 </div>
                 <div className="space-y-2">
@@ -205,55 +211,64 @@ const Staff = () => {
                     placeholder="+91 98765 43210"
                     value={formData.phone}
                     onChange={(e) => setFormData({ ...formData, phone: e.target.value })}
+                    className="border-border/50"
                   />
                 </div>
                 <div className="space-y-2">
-                  <Label>Role *</Label>
-                  <Select value={formData.role} onValueChange={(value) => setFormData({ ...formData, role: value })}>
-                    <SelectTrigger>
-                      <SelectValue />
+                  <Label>Department</Label>
+                  <Select value={formData.department} onValueChange={(value) => setFormData({ ...formData, department: value })}>
+                    <SelectTrigger className="border-border/50">
+                      <SelectValue placeholder="Select department" />
                     </SelectTrigger>
                     <SelectContent>
-                      <SelectItem value="staff">Staff</SelectItem>
-                      <SelectItem value="manager">Manager</SelectItem>
-                      <SelectItem value="admin">Admin</SelectItem>
+                      <SelectItem value="">Unassigned</SelectItem>
+                      {departments?.map((dept: any) => (
+                        <SelectItem key={dept.id} value={dept.id}>
+                          {dept.name}
+                        </SelectItem>
+                      ))}
                     </SelectContent>
                   </Select>
                 </div>
                 <p className="text-xs text-muted-foreground">
-                  Password reset link will be sent to their email
+                  Note: This creates a staff record without account access
                 </p>
                 <Button 
                   onClick={() => addStaff.mutate(formData)}
                   disabled={!formData.full_name || !formData.email || !formData.phone || addStaff.isPending}
+                  className="shadow-md"
                 >
-                  {addStaff.isPending ? "Creating..." : "Create Staff Account"}
+                  {addStaff.isPending ? "Adding..." : "Add Staff Member"}
                 </Button>
               </div>
             </DialogContent>
-           </Dialog>
-         </div>
+          </Dialog>
+        </div>
 
-         <div className="flex gap-2 mt-4">
-           <Button
-             size="sm"
-             variant={activeView === "staff" ? "default" : "outline"}
-             onClick={() => setActiveView("staff")}
-           >
-             Staff
-           </Button>
-           <Button
-             size="sm"
-             variant={activeView === "departments" ? "default" : "outline"}
-             onClick={() => setActiveView("departments")}
-           >
-             Departments
-           </Button>
-         </div>
+        <div className="flex gap-2">
+          <Button
+            size="sm"
+            variant={activeView === "staff" ? "default" : "outline"}
+            onClick={() => setActiveView("staff")}
+            className="shadow-sm"
+          >
+            <User className="h-4 w-4 mr-1" />
+            Staff
+          </Button>
+          <Button
+            size="sm"
+            variant={activeView === "departments" ? "default" : "outline"}
+            onClick={() => setActiveView("departments")}
+            className="shadow-sm"
+          >
+            <Users className="h-4 w-4 mr-1" />
+            Departments
+          </Button>
+        </div>
 
-         {activeView === "staff" && (
-         <Card>
-          <CardHeader>
+        {activeView === "staff" && (
+        <Card className="shadow-md border-border/50">
+          <CardHeader className="border-b bg-muted/30">
             <div className="flex items-center gap-4">
               <div className="relative flex-1">
                 <Search className="absolute left-3 top-1/2 transform -translate-y-1/2 h-4 w-4 text-muted-foreground" />
@@ -261,12 +276,12 @@ const Staff = () => {
                   placeholder="Search by name or phone..."
                   value={search}
                   onChange={(e) => setSearch(e.target.value)}
-                  className="pl-10"
+                  className="pl-10 border-border/50"
                 />
               </div>
             </div>
           </CardHeader>
-          <CardContent>
+          <CardContent className="pt-6">
             {isLoading ? (
               <div className="text-center py-8 text-muted-foreground">Loading staff...</div>
             ) : filteredStaff?.length === 0 ? (
@@ -276,49 +291,45 @@ const Staff = () => {
                 {filteredStaff?.map((member) => {
                   const perf = performance?.[member.id];
                   const completionRate = perf ? ((perf.completed / perf.total) * 100).toFixed(0) : 0;
+                  const dept = departments?.find(d => d.id === (member as any).branch_id);
                   
                   return (
-                    <Card key={member.id} className="hover:shadow-md transition-shadow">
+                    <Card key={member.id} className="hover:shadow-md transition-all border-border/50 hover:border-primary/30">
                       <CardContent className="p-4 space-y-3">
                         <div className="flex items-start justify-between">
-                          <div className="flex items-center gap-3">
+                          <div className="flex items-center gap-3 flex-1">
                             <div className="w-12 h-12 rounded-full bg-primary/10 flex items-center justify-center">
                               <User className="h-6 w-6 text-primary" />
                             </div>
-                            <div>
-                              <p className="font-bold">{member.full_name || "No Name"}</p>
+                            <div className="flex-1">
+                              <p className="font-bold text-foreground">{member.full_name || "No Name"}</p>
                               <p className="text-xs text-muted-foreground">{member.phone}</p>
-                              {departments && (
-                                <div className="mt-2">
-                                  <Label className="text-[10px] text-muted-foreground">Department</Label>
-                                  <Select
-                                    value={(member as any).branch_id || ""}
-                                    onValueChange={(value) =>
-                                      updateStaffDepartment.mutate({
-                                        profileId: member.id,
-                                        departmentId: value || null,
-                                      })
-                                    }
-                                  >
-                                    <SelectTrigger className="h-8 mt-1 w-40">
-                                      <SelectValue placeholder="Assign" />
-                                    </SelectTrigger>
-                                    <SelectContent>
-                                      <SelectItem value="">Unassigned</SelectItem>
-                                      {departments?.map((dept: any) => (
-                                        <SelectItem key={dept.id} value={dept.id}>
-                                          {dept.name}
-                                        </SelectItem>
-                                      ))}
-                                    </SelectContent>
-                                  </Select>
-                                </div>
-                              )}
+                              <div className="mt-2">
+                                <Label className="text-[10px] text-muted-foreground">Department</Label>
+                                <Select
+                                  value={(member as any).branch_id || ""}
+                                  onValueChange={(value) =>
+                                    updateStaffDepartment.mutate({
+                                      profileId: member.id,
+                                      departmentId: value || null,
+                                    })
+                                  }
+                                >
+                                  <SelectTrigger className="h-8 mt-1 w-full border-border/50">
+                                    <SelectValue placeholder="Assign" />
+                                  </SelectTrigger>
+                                  <SelectContent>
+                                    <SelectItem value="">Unassigned</SelectItem>
+                                    {departments?.map((dept: any) => (
+                                      <SelectItem key={dept.id} value={dept.id}>
+                                        {dept.name}
+                                      </SelectItem>
+                                    ))}
+                                  </SelectContent>
+                                </Select>
+                              </div>
                             </div>
                           </div>
-                          <Badge className={`${roleColors[(member.user_roles as any)?.[0]?.role || "staff"]} text-white capitalize`}>
-                            {(member.user_roles as any)?.[0]?.role || "staff"}
-                          </Badge>
                         </div>
 
                         {perf && (
@@ -331,135 +342,144 @@ const Staff = () => {
                               <span className="font-medium">{perf.completed}/{perf.total}</span>
                             </div>
                             <div className="flex items-center justify-between text-sm">
-                              <span className="text-muted-foreground flex items-center gap-1">
-                                <TrendingUp className="h-3 w-3" />
-                                Success Rate
-                              </span>
-                              <span className="font-medium text-green-600">{completionRate}%</span>
+                              <span className="text-muted-foreground">Success Rate</span>
+                              <Badge variant="secondary" className="bg-success/10 text-success">{completionRate}%</Badge>
                             </div>
                           </div>
                         )}
-
-                        <div className="flex gap-2 pt-2">
-                          <Button 
-                            size="sm" 
-                            variant="outline" 
-                            className="flex-1"
-                            onClick={() => navigate(`/job-cards?staff=${member.id}`)}
-                          >
-                            View Jobs
-                          </Button>
-                          <Button size="sm" variant="outline" className="flex-1">
-                            <Clock className="h-3 w-3 mr-1" />
-                            Attendance
-                          </Button>
-                        </div>
                       </CardContent>
                     </Card>
                   );
                 })}
               </div>
-             )}
-           </CardContent>
-         </Card>
-         )}
+            )}
+          </CardContent>
+        </Card>
+        )}
 
-         {activeView === "departments" && (
-           <Card>
-             <CardHeader className="flex flex-row items-center justify-between">
-               <div>
-                 <h2 className="text-xl font-semibold">Departments</h2>
-                 <p className="text-sm text-muted-foreground">
-                   Create departments and group your staff
-                 </p>
-               </div>
-               <Dialog open={departmentDialogOpen} onOpenChange={setDepartmentDialogOpen}>
-                 <DialogTrigger asChild>
-                   <Button size="sm" className="gap-2">
-                     <Plus className="h-4 w-4" />
-                     Add Department
-                   </Button>
-                 </DialogTrigger>
-                 <DialogContent>
-                   <DialogHeader>
-                     <DialogTitle>Create Department</DialogTitle>
-                   </DialogHeader>
-                   <div className="grid gap-3">
-                     <div className="space-y-1">
-                       <Label>Name *</Label>
-                       <Input
-                         value={departmentForm.name}
-                         onChange={(e) =>
-                           setDepartmentForm({ ...departmentForm, name: e.target.value })
-                         }
-                       />
-                     </div>
-                     <div className="space-y-1">
-                       <Label>Phone</Label>
-                       <Input
-                         value={departmentForm.phone}
-                         onChange={(e) =>
-                           setDepartmentForm({ ...departmentForm, phone: e.target.value })
-                         }
-                       />
-                     </div>
-                     <div className="space-y-1">
-                       <Label>Email</Label>
-                       <Input
-                         type="email"
-                         value={departmentForm.email}
-                         onChange={(e) =>
-                           setDepartmentForm({ ...departmentForm, email: e.target.value })
-                         }
-                       />
-                     </div>
-                     <div className="space-y-1">
-                       <Label>Address</Label>
-                       <Input
-                         value={departmentForm.address}
-                         onChange={(e) =>
-                           setDepartmentForm({ ...departmentForm, address: e.target.value })
-                         }
-                       />
-                     </div>
-                     <Button
-                       onClick={() => addDepartment.mutate(departmentForm)}
-                       disabled={!departmentForm.name || addDepartment.isPending}
-                     >
-                       {addDepartment.isPending ? "Creating..." : "Create Department"}
-                     </Button>
-                   </div>
-                 </DialogContent>
-               </Dialog>
-             </CardHeader>
-             <CardContent>
-               {departments && departments.length > 0 ? (
-                 <div className="space-y-3">
-                   {departments.map((dept: any) => (
-                     <Card key={dept.id}>
-                       <CardContent className="p-3 flex items-center justify-between">
-                         <div>
-                           <p className="font-medium">{dept.name}</p>
-                           {dept.address && (
-                             <p className="text-xs text-muted-foreground">{dept.address}</p>
-                           )}
-                         </div>
-                         <Badge variant={dept.is_active ? "default" : "secondary"}>
-                           {dept.is_active ? "Active" : "Inactive"}
-                         </Badge>
-                       </CardContent>
-                     </Card>
-                   ))}
-                 </div>
-               ) : (
-                 <p className="text-sm text-muted-foreground">
-                   No departments created yet.
-                 </p>
-               )}
-             </CardContent>
-           </Card>
-         )}
-       </div>
+        {activeView === "departments" && (
+          <Card className="shadow-md border-border/50">
+            <CardHeader className="flex flex-row items-center justify-between border-b bg-muted/30">
+              <div>
+                <h2 className="text-xl font-semibold">Departments</h2>
+                <p className="text-sm text-muted-foreground">
+                  Create departments and assign staff
+                </p>
+              </div>
+              <Dialog open={departmentDialogOpen} onOpenChange={setDepartmentDialogOpen}>
+                <DialogTrigger asChild>
+                  <Button size="sm" className="gap-2 shadow-md">
+                    <Plus className="h-4 w-4" />
+                    Add Department
+                  </Button>
+                </DialogTrigger>
+                <DialogContent>
+                  <DialogHeader>
+                    <DialogTitle>Create Department</DialogTitle>
+                  </DialogHeader>
+                  <div className="grid gap-3">
+                    <div className="space-y-1">
+                      <Label>Name *</Label>
+                      <Input
+                        value={departmentForm.name}
+                        onChange={(e) =>
+                          setDepartmentForm({ ...departmentForm, name: e.target.value })
+                        }
+                        className="border-border/50"
+                      />
+                    </div>
+                    <div className="space-y-1">
+                      <Label>Phone</Label>
+                      <Input
+                        value={departmentForm.phone}
+                        onChange={(e) =>
+                          setDepartmentForm({ ...departmentForm, phone: e.target.value })
+                        }
+                        className="border-border/50"
+                      />
+                    </div>
+                    <div className="space-y-1">
+                      <Label>Email</Label>
+                      <Input
+                        type="email"
+                        value={departmentForm.email}
+                        onChange={(e) =>
+                          setDepartmentForm({ ...departmentForm, email: e.target.value })
+                        }
+                        className="border-border/50"
+                      />
+                    </div>
+                    <div className="space-y-1">
+                      <Label>Address</Label>
+                      <Input
+                        value={departmentForm.address}
+                        onChange={(e) =>
+                          setDepartmentForm({ ...departmentForm, address: e.target.value })
+                        }
+                        className="border-border/50"
+                      />
+                    </div>
+                    <Button
+                      onClick={() => addDepartment.mutate(departmentForm)}
+                      disabled={!departmentForm.name || addDepartment.isPending}
+                      className="shadow-md"
+                    >
+                      {addDepartment.isPending ? "Creating..." : "Create Department"}
+                    </Button>
+                  </div>
+                </DialogContent>
+              </Dialog>
+            </CardHeader>
+            <CardContent className="pt-6">
+              {departments && departments.length > 0 ? (
+                <div className="grid gap-4 md:grid-cols-2 lg:grid-cols-3">
+                  {departments.map((dept: any) => {
+                    const members = getDeptMembers(dept.id);
+                    return (
+                      <Card 
+                        key={dept.id}
+                        className="hover:shadow-md transition-all border-border/50 hover:border-primary/30 cursor-pointer"
+                        onClick={() => setSelectedDept(selectedDept === dept.id ? null : dept.id)}
+                      >
+                        <CardHeader className="pb-3">
+                          <CardTitle className="flex items-center justify-between">
+                            <span className="text-lg">{dept.name}</span>
+                            <Badge variant="secondary" className="text-xs">
+                              {members.length} {members.length === 1 ? "member" : "members"}
+                            </Badge>
+                          </CardTitle>
+                        </CardHeader>
+                        <CardContent>
+                          {selectedDept === dept.id && members.length > 0 && (
+                            <div className="space-y-2 pt-2 border-t">
+                              <p className="text-xs font-semibold text-muted-foreground uppercase">Members</p>
+                              {members.map(m => (
+                                <div key={m.id} className="flex items-center gap-2 text-sm p-2 rounded bg-muted/50">
+                                  <User className="h-3 w-3 text-primary" />
+                                  <span>{m.full_name || "No Name"}</span>
+                                </div>
+                              ))}
+                            </div>
+                          )}
+                          {dept.phone && (
+                            <p className="text-sm text-muted-foreground mt-2">
+                              📞 {dept.phone}
+                            </p>
+                          )}
+                        </CardContent>
+                      </Card>
+                    );
+                  })}
+                </div>
+              ) : (
+                <div className="text-center py-8 text-muted-foreground">
+                  No departments created yet
+                </div>
+              )}
+            </CardContent>
+          </Card>
+        )}
+      </div>
     </DashboardLayout>
   );
 };
