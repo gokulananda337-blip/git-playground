@@ -77,8 +77,10 @@ export type Database = {
       branches: {
         Row: {
           address: string | null
+          company_logo_url: string | null
           created_at: string
           email: string | null
+          gst_number: string | null
           id: string
           is_active: boolean | null
           name: string
@@ -91,8 +93,10 @@ export type Database = {
         }
         Insert: {
           address?: string | null
+          company_logo_url?: string | null
           created_at?: string
           email?: string | null
+          gst_number?: string | null
           id?: string
           is_active?: boolean | null
           name: string
@@ -105,8 +109,10 @@ export type Database = {
         }
         Update: {
           address?: string | null
+          company_logo_url?: string | null
           created_at?: string
           email?: string | null
+          gst_number?: string | null
           id?: string
           is_active?: boolean | null
           name?: string

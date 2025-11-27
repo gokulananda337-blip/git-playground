@@ -4,9 +4,10 @@ import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/com
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
+import { Textarea } from "@/components/ui/textarea";
 import { supabase } from "@/integrations/supabase/client";
 import { useToast } from "@/hooks/use-toast";
-import { Loader2, Check, X } from "lucide-react";
+import { Loader2, Building2, Phone, Mail, MapPin, FileText } from "lucide-react";
 
 export default function Settings() {
   const { toast } = useToast();
@@ -18,6 +19,7 @@ export default function Settings() {
     email: "",
     phone: "",
     address: "",
+    gst_number: "",
   });
 
   useEffect(() => {
@@ -47,44 +49,9 @@ export default function Settings() {
         email: first.email || "",
         phone: first.phone || "",
         address: first.address || "",
+        gst_number: first.gst_number || "",
       });
     }
-  };
-
-  const handleConnectWhatsApp = () => {
-    // Meta OAuth flow - redirect to Meta's permission screen
-    const appId = import.meta.env.VITE_META_APP_ID || "YOUR_META_APP_ID";
-    const redirectUri = encodeURIComponent(`${window.location.origin}/settings/whatsapp-callback`);
-    const state = selectedBranch; // Pass branch ID as state
-    
-    const metaOAuthUrl = `https://www.facebook.com/v18.0/dialog/oauth?client_id=${appId}&redirect_uri=${redirectUri}&state=${state}&scope=whatsapp_business_management,whatsapp_business_messaging`;
-    
-    window.location.href = metaOAuthUrl;
-  };
-
-  const handleDisconnectWhatsApp = async () => {
-    if (!selectedBranch) return;
-
-    setLoading(true);
-    const { error } = await supabase
-      .from("branches")
-      .update({
-        whatsapp_phone_number_id: null,
-        whatsapp_access_token: null,
-        whatsapp_business_account_id: null,
-        whatsapp_verified: false,
-      })
-      .eq("id", selectedBranch);
-
-    setLoading(false);
-
-    if (error) {
-      toast({ title: "Error disconnecting WhatsApp", variant: "destructive" });
-      return;
-    }
-
-    toast({ title: "WhatsApp disconnected successfully" });
-    fetchBranches();
   };
 
   const handleSaveCompanyInfo = async () => {
@@ -98,6 +65,7 @@ export default function Settings() {
         email: companyForm.email,
         phone: companyForm.phone,
         address: companyForm.address,
+        gst_number: companyForm.gst_number,
       })
       .eq("id", selectedBranch);
 
@@ -108,32 +76,121 @@ export default function Settings() {
       return;
     }
 
-    toast({ title: "Company info updated" });
+    toast({ title: "Company information updated successfully" });
     fetchBranches();
   };
 
-  // Derived state for WhatsApp connection status
-  const currentBranch = branches.find((b) => b.id === selectedBranch);
-  const isConnected = currentBranch?.whatsapp_verified;
-
   return (
     <DashboardLayout>
-      <div className="space-y-6">
+      <div className="p-6 space-y-6">
         <div>
-          <h1 className="text-3xl font-bold">Settings</h1>
-          <p className="text-muted-foreground">Manage your WhatsApp integration and system settings</p>
+          <h1 className="text-3xl font-semibold">Settings</h1>
+          <p className="text-muted-foreground">Manage company information and system settings</p>
         </div>
 
         <Card>
-          <CardHeader>
-            <CardTitle>WhatsApp Business API Integration</CardTitle>
+          <CardHeader className="border-b">
+            <CardTitle className="flex items-center gap-2">
+              <Building2 className="h-5 w-5" />
+              Company Information
+            </CardTitle>
             <CardDescription>
-              Connect your WhatsApp Business Account to enable AI booking chatbot, automated reminders, and notifications
+              Update your business details. This information will be used in invoices and receipts.
             </CardDescription>
           </CardHeader>
-          <CardContent className="space-y-4">
+          <CardContent className="pt-6 space-y-4">
+            <div className="grid gap-4 md:grid-cols-2">
+              <div className="space-y-2">
+                <Label htmlFor="company-name" className="flex items-center gap-2">
+                  <Building2 className="h-4 w-4 text-muted-foreground" />
+                  Company Name *
+                </Label>
+                <Input
+                  id="company-name"
+                  value={companyForm.name}
+                  onChange={(e) => setCompanyForm({ ...companyForm, name: e.target.value })}
+                  placeholder="AutoWash Pro Pvt. Ltd."
+                />
+              </div>
+
+              <div className="space-y-2">
+                <Label htmlFor="gst" className="flex items-center gap-2">
+                  <FileText className="h-4 w-4 text-muted-foreground" />
+                  GST Number
+                </Label>
+                <Input
+                  id="gst"
+                  value={companyForm.gst_number}
+                  onChange={(e) => setCompanyForm({ ...companyForm, gst_number: e.target.value })}
+                  placeholder="22AAAAA0000A1Z5"
+                />
+              </div>
+
+              <div className="space-y-2">
+                <Label htmlFor="email" className="flex items-center gap-2">
+                  <Mail className="h-4 w-4 text-muted-foreground" />
+                  Email
+                </Label>
+                <Input
+                  id="email"
+                  type="email"
+                  value={companyForm.email}
+                  onChange={(e) => setCompanyForm({ ...companyForm, email: e.target.value })}
+                  placeholder="info@autowashpro.com"
+                />
+              </div>
+
+              <div className="space-y-2">
+                <Label htmlFor="phone" className="flex items-center gap-2">
+                  <Phone className="h-4 w-4 text-muted-foreground" />
+                  Phone
+                </Label>
+                <Input
+                  id="phone"
+                  value={companyForm.phone}
+                  onChange={(e) => setCompanyForm({ ...companyForm, phone: e.target.value })}
+                  placeholder="+91 98765 43210"
+                />
+              </div>
+
+              <div className="space-y-2 md:col-span-2">
+                <Label htmlFor="address" className="flex items-center gap-2">
+                  <MapPin className="h-4 w-4 text-muted-foreground" />
+                  Address
+                </Label>
+                <Textarea
+                  id="address"
+                  value={companyForm.address}
+                  onChange={(e) => setCompanyForm({ ...companyForm, address: e.target.value })}
+                  placeholder="123 Main Street, City, State - 400001"
+                  rows={3}
+                />
+              </div>
+            </div>
+
+            <div className="flex justify-end pt-4">
+              <Button 
+                onClick={handleSaveCompanyInfo} 
+                disabled={!companyForm.name || loading}
+                className="min-w-32"
+              >
+                {loading && <Loader2 className="mr-2 h-4 w-4 animate-spin" />}
+                Save Changes
+              </Button>
+            </div>
+          </CardContent>
+        </Card>
+
+        <Card>
+          <CardHeader className="border-b">
+            <CardTitle>Branch Selection</CardTitle>
+            <CardDescription>
+              Select which branch to manage settings for
+            </CardDescription>
+          </CardHeader>
+          <CardContent className="pt-6">
             <div className="space-y-2">
-              <Label>Select Branch</Label>
+              <Label>Active Branch</Label>
               <select
                 value={selectedBranch}
                 onChange={(e) => {
@@ -145,10 +202,11 @@ export default function Settings() {
                       email: branch.email || "",
                       phone: branch.phone || "",
                       address: branch.address || "",
+                      gst_number: branch.gst_number || "",
                     });
                   }
                 }}
-                className="w-full rounded-lg border border-input bg-background px-3 py-2"
+                className="w-full rounded-md border border-input bg-background px-3 py-2"
               >
                 {branches.map((branch) => (
                   <option key={branch.id} value={branch.id}>
@@ -156,79 +214,6 @@ export default function Settings() {
                   </option>
                 ))}
               </select>
-            </div>
-
-            {isConnected && currentBranch && (
-              <div className="rounded-lg bg-accent/50 p-4 space-y-2">
-                <div className="flex items-center gap-2 text-sm">
-                  <Check className="h-4 w-4 text-primary" />
-                  <span className="font-medium">WhatsApp Connected</span>
-                </div>
-                <div className="text-sm text-muted-foreground space-y-1">
-                  <p>Phone Number ID: {currentBranch.whatsapp_phone_number_id}</p>
-                  <p>Business Account ID: {currentBranch.whatsapp_business_account_id}</p>
-                </div>
-              </div>
-            )}
-
-            {!isConnected && (
-              <div className="rounded-lg bg-muted/50 p-4 space-y-2">
-                <div className="flex items-center gap-2 text-sm">
-                  <X className="h-4 w-4 text-muted-foreground" />
-                  <span className="font-medium">Not Connected</span>
-                </div>
-                <p className="text-sm text-muted-foreground">
-                  Connect your WhatsApp Business Account to start receiving bookings via WhatsApp
-                </p>
-              </div>
-            )}
-
-            <div className="flex gap-3">
-              {!isConnected ? (
-                <Button onClick={handleConnectWhatsApp} disabled={!selectedBranch || loading}>
-                  {loading && <Loader2 className="mr-2 h-4 w-4 animate-spin" />}
-                  Connect WhatsApp
-                </Button>
-              ) : (
-                <Button onClick={handleDisconnectWhatsApp} variant="destructive" disabled={loading}>
-                  {loading && <Loader2 className="mr-2 h-4 w-4 animate-spin" />}
-                  Disconnect WhatsApp
-                </Button>
-              )}
-            </div>
-
-            <div className="rounded-lg bg-muted/30 p-4 text-sm space-y-2">
-              <p className="font-medium">How to connect:</p>
-              <ol className="list-decimal list-inside space-y-1 text-muted-foreground">
-                <li>Select your branch from the dropdown</li>
-                <li>Click "Connect WhatsApp" button</li>
-                <li>Log in with your Facebook Business Account</li>
-                <li>Select your WhatsApp Business Account (WABA)</li>
-                <li>Choose or register a phone number</li>
-                <li>Verify with OTP and authorize the app</li>
-              </ol>
-            </div>
-          </CardContent>
-        </Card>
-
-        <Card>
-          <CardHeader>
-            <CardTitle>Webhook Configuration</CardTitle>
-            <CardDescription>
-              Use this webhook URL in your Meta App Dashboard to receive WhatsApp messages
-            </CardDescription>
-          </CardHeader>
-          <CardContent>
-            <div className="space-y-2">
-              <Label>Webhook URL</Label>
-              <Input
-                value={`${import.meta.env.VITE_SUPABASE_URL}/functions/v1/whatsapp-webhook`}
-                readOnly
-                className="font-mono text-sm"
-              />
-              <p className="text-xs text-muted-foreground">
-                Add this URL to your Meta App's Webhooks configuration and subscribe to "messages" events
-              </p>
             </div>
           </CardContent>
         </Card>
