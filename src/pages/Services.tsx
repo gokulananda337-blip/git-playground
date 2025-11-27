@@ -17,6 +17,7 @@ import { Label } from "@/components/ui/label";
 import { Textarea } from "@/components/ui/textarea";
 import { Switch } from "@/components/ui/switch";
 import { Badge } from "@/components/ui/badge";
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 
 interface Service {
   id: string;
@@ -39,6 +40,7 @@ const Services = () => {
   const [dialogOpen, setDialogOpen] = useState(false);
   const [detailDialogOpen, setDetailDialogOpen] = useState(false);
   const [selectedService, setSelectedService] = useState<Service | null>(null);
+  const [customStage, setCustomStage] = useState("");
   const [formData, setFormData] = useState({
     name: "",
     description: "",
@@ -47,6 +49,8 @@ const Services = () => {
     duration_minutes: "30",
     is_active: true,
     lifecycle_stages: DEFAULT_STAGES,
+    service_type: "service" as "service" | "subscription" | "package",
+    package_services: [] as string[],
   });
   const { toast } = useToast();
 
@@ -154,12 +158,15 @@ const Services = () => {
       duration_minutes: service.duration_minutes.toString(),
       is_active: service.is_active ?? true,
       lifecycle_stages: Array.isArray(service.lifecycle_stages) ? service.lifecycle_stages : DEFAULT_STAGES,
+      service_type: (service as any).service_type || "service",
+      package_services: (service as any).package_services || [],
     });
     setDialogOpen(true);
   };
 
   const resetForm = () => {
     setSelectedService(null);
+    setCustomStage("");
     setFormData({
       name: "",
       description: "",
@@ -168,6 +175,8 @@ const Services = () => {
       duration_minutes: "30",
       is_active: true,
       lifecycle_stages: DEFAULT_STAGES,
+      service_type: "service",
+      package_services: [],
     });
   };
 
@@ -181,6 +190,20 @@ const Services = () => {
       ? formData.lifecycle_stages.filter(s => s !== stage)
       : [...formData.lifecycle_stages, stage];
     setFormData({ ...formData, lifecycle_stages: stages });
+  };
+
+  const addCustomStage = () => {
+    if (!customStage.trim()) return;
+    const stageValue = customStage.toLowerCase().replace(/\s+/g, "_");
+    if (!formData.lifecycle_stages.includes(stageValue)) {
+      setFormData({ ...formData, lifecycle_stages: [...formData.lifecycle_stages, stageValue] });
+      setCustomStage("");
+      toast({ title: "Custom stage added" });
+    }
+  };
+
+  const removeCustomStage = (stage: string) => {
+    setFormData({ ...formData, lifecycle_stages: formData.lifecycle_stages.filter(s => s !== stage) });
   };
 
   return (
@@ -297,6 +320,24 @@ const Services = () => {
             </DialogHeader>
             <div className="space-y-4">
               <div>
+                <Label>Service Type *</Label>
+                <Select value={formData.service_type} onValueChange={(value: any) => setFormData({ ...formData, service_type: value })}>
+                  <SelectTrigger className="border-border/50">
+                    <SelectValue />
+                  </SelectTrigger>
+                  <SelectContent>
+                    <SelectItem value="service">Single Service</SelectItem>
+                    <SelectItem value="subscription">Monthly Subscription</SelectItem>
+                    <SelectItem value="package">Package (Combo)</SelectItem>
+                  </SelectContent>
+                </Select>
+                <p className="text-xs text-muted-foreground mt-1">
+                  {formData.service_type === "subscription" && "Recurring monthly service plan"}
+                  {formData.service_type === "package" && "Combination of multiple services"}
+                  {formData.service_type === "service" && "One-time service"}
+                </p>
+              </div>
+              <div>
                 <Label>Service Name *</Label>
                 <Input
                   value={formData.name}
@@ -361,21 +402,48 @@ const Services = () => {
               
               <div>
                 <Label className="mb-3 block">Lifecycle Stages *</Label>
-                <div className="grid grid-cols-2 gap-2 p-3 border rounded-lg border-border/50 bg-muted/20">
-                  {DEFAULT_STAGES.map((stage) => (
-                    <label key={stage} className="flex items-center gap-2 cursor-pointer p-2 hover:bg-accent/10 rounded">
-                      <input
-                        type="checkbox"
-                        checked={formData.lifecycle_stages.includes(stage)}
-                        onChange={() => toggleStage(stage)}
-                        className="rounded"
-                      />
-                      <span className="text-sm capitalize">{stage.replace("_", " ")}</span>
-                    </label>
-                  ))}
+                <div className="space-y-3">
+                  <div className="grid grid-cols-2 gap-2 p-3 border rounded-lg border-border/50 bg-muted/20">
+                    {formData.lifecycle_stages.map((stage) => (
+                      <div key={stage} className="flex items-center justify-between p-2 hover:bg-accent/10 rounded">
+                        <label className="flex items-center gap-2 cursor-pointer flex-1">
+                          <input
+                            type="checkbox"
+                            checked={true}
+                            onChange={() => removeCustomStage(stage)}
+                            className="rounded"
+                          />
+                          <span className="text-sm capitalize">{stage.replace("_", " ")}</span>
+                        </label>
+                        {!DEFAULT_STAGES.includes(stage) && (
+                          <Button
+                            type="button"
+                            variant="ghost"
+                            size="sm"
+                            onClick={() => removeCustomStage(stage)}
+                            className="h-6 w-6 p-0 text-destructive hover:text-destructive"
+                          >
+                            ×
+                          </Button>
+                        )}
+                      </div>
+                    ))}
+                  </div>
+                  <div className="flex gap-2">
+                    <Input
+                      placeholder="Add custom stage..."
+                      value={customStage}
+                      onChange={(e) => setCustomStage(e.target.value)}
+                      onKeyDown={(e) => e.key === "Enter" && (e.preventDefault(), addCustomStage())}
+                      className="border-border/50"
+                    />
+                    <Button type="button" onClick={addCustomStage} variant="outline">
+                      <Plus className="h-4 w-4" />
+                    </Button>
+                  </div>
                 </div>
                 <p className="text-xs text-muted-foreground mt-2">
-                  Select stages that apply to this service. These will appear in job cards.
+                  Customize lifecycle stages for this service. Add your own or use defaults.
                 </p>
               </div>
 

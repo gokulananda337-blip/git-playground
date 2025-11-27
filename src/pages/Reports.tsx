@@ -2,17 +2,32 @@ import DashboardLayout from "@/components/DashboardLayout";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
+import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover";
+import { Calendar } from "@/components/ui/calendar";
 import { useQuery } from "@tanstack/react-query";
 import { supabase } from "@/integrations/supabase/client";
 import { BarChart, Bar, LineChart, Line, PieChart, Pie, Cell, XAxis, YAxis, CartesianGrid, Tooltip, Legend, ResponsiveContainer } from "recharts";
-import { Download, TrendingUp, Users, Car, DollarSign, Calendar } from "lucide-react";
+import { Download, TrendingUp, Users, Car, DollarSign, Calendar as CalendarIcon } from "lucide-react";
 import { useState } from "react";
+import { format, subDays } from "date-fns";
 
 const Reports = () => {
-  const [period, setPeriod] = useState("7");
+  const [dateRange, setDateRange] = useState({ from: subDays(new Date(), 30), to: new Date() });
+  const [selectedDepartment, setSelectedDepartment] = useState<string>("all");
+
+  const { data: departments } = useQuery({
+    queryKey: ["branches"],
+    queryFn: async () => {
+      const { data: { user } } = await supabase.auth.getUser();
+      if (!user) return [];
+      const { data, error } = await supabase.from("branches").select("id, name").eq("user_id", user.id);
+      if (error) throw error;
+      return data;
+    }
+  });
 
   const { data: stats } = useQuery({
-    queryKey: ["reports-stats"],
+    queryKey: ["reports-stats", selectedDepartment, dateRange],
     queryFn: async () => {
       const { data: { user } } = await supabase.auth.getUser();
       if (!user) throw new Error("Not authenticated");
@@ -20,8 +35,16 @@ const Reports = () => {
       const [customers, vehicles, bookings, invoices] = await Promise.all([
         supabase.from("customers").select("id", { count: "exact" }).eq("user_id", user.id),
         supabase.from("vehicles").select("id", { count: "exact" }).eq("user_id", user.id),
-        supabase.from("bookings").select("id, status", { count: "exact" }).eq("user_id", user.id),
-        supabase.from("invoices").select("total_amount, payment_status").eq("user_id", user.id)
+        supabase.from("bookings")
+          .select("id, status, booking_date", { count: "exact" })
+          .eq("user_id", user.id)
+          .gte("booking_date", format(dateRange.from, "yyyy-MM-dd"))
+          .lte("booking_date", format(dateRange.to, "yyyy-MM-dd")),
+        supabase.from("invoices")
+          .select("total_amount, payment_status, created_at")
+          .eq("user_id", user.id)
+          .gte("created_at", dateRange.from.toISOString())
+          .lte("created_at", dateRange.to.toISOString())
       ]);
 
       const totalRevenue = invoices.data?.reduce((sum, inv) => sum + Number(inv.total_amount), 0) || 0;
@@ -38,17 +61,45 @@ const Reports = () => {
     }
   });
 
+  const { data: revenueByDepartment } = useQuery({
+    queryKey: ["revenue-by-department", dateRange],
+    queryFn: async () => {
+      const { data: { user } } = await supabase.auth.getUser();
+      if (!user) return [];
+
+      const { data: branches } = await supabase.from("branches").select("id, name").eq("user_id", user.id);
+      if (!branches) return [];
+
+      const revenueData = await Promise.all(
+        branches.map(async (branch) => {
+          const { data: invoices } = await supabase
+            .from("invoices")
+            .select("total_amount")
+            .eq("user_id", user.id)
+            .gte("created_at", dateRange.from.toISOString())
+            .lte("created_at", dateRange.to.toISOString());
+
+          const total = invoices?.reduce((sum, inv) => sum + Number(inv.total_amount), 0) || 0;
+          return { name: branch.name, revenue: total };
+        })
+      );
+
+      return revenueData;
+    }
+  });
+
   const { data: revenueData } = useQuery({
-    queryKey: ["revenue-trend", period],
+    queryKey: ["revenue-trend", dateRange],
     queryFn: async () => {
       const { data } = await supabase
         .from("invoices")
         .select("created_at, total_amount")
-        .gte("created_at", new Date(Date.now() - Number(period) * 24 * 60 * 60 * 1000).toISOString())
+        .gte("created_at", dateRange.from.toISOString())
+        .lte("created_at", dateRange.to.toISOString())
         .order("created_at");
 
       const grouped = data?.reduce((acc: any, inv) => {
-        const date = new Date(inv.created_at).toLocaleDateString();
+        const date = format(new Date(inv.created_at), "MMM dd");
         if (!acc[date]) acc[date] = 0;
         acc[date] += Number(inv.total_amount);
         return acc;
@@ -59,9 +110,14 @@ const Reports = () => {
   });
 
   const { data: serviceData } = useQuery({
-    queryKey: ["service-distribution"],
+    queryKey: ["service-distribution", dateRange],
     queryFn: async () => {
-      const { data } = await supabase.from("bookings").select("services");
+      const { data } = await supabase
+        .from("bookings")
+        .select("services")
+        .gte("booking_date", format(dateRange.from, "yyyy-MM-dd"))
+        .lte("booking_date", format(dateRange.to, "yyyy-MM-dd"));
+
       const serviceCounts: any = {};
       
       data?.forEach(booking => {
@@ -92,6 +148,38 @@ const Reports = () => {
           </Button>
         </div>
 
+        <div className="flex gap-4 flex-wrap">
+          <Popover>
+            <PopoverTrigger asChild>
+              <Button variant="outline" className="gap-2">
+                <CalendarIcon className="h-4 w-4" />
+                {format(dateRange.from, "MMM dd")} - {format(dateRange.to, "MMM dd, yyyy")}
+              </Button>
+            </PopoverTrigger>
+            <PopoverContent className="w-auto p-0" align="start">
+              <Calendar
+                mode="range"
+                selected={{ from: dateRange.from, to: dateRange.to }}
+                onSelect={(range) => range?.from && range?.to && setDateRange({ from: range.from, to: range.to })}
+                numberOfMonths={2}
+                className="pointer-events-auto"
+              />
+            </PopoverContent>
+          </Popover>
+
+          <Select value={selectedDepartment} onValueChange={setSelectedDepartment}>
+            <SelectTrigger className="w-48">
+              <SelectValue placeholder="All Departments" />
+            </SelectTrigger>
+            <SelectContent>
+              <SelectItem value="all">All Departments</SelectItem>
+              {departments?.map((dept) => (
+                <SelectItem key={dept.id} value={dept.id}>{dept.name}</SelectItem>
+              ))}
+            </SelectContent>
+          </Select>
+        </div>
+
         <div className="grid gap-4 md:grid-cols-2 lg:grid-cols-4">
           <Card>
             <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
@@ -118,7 +206,7 @@ const Reports = () => {
           <Card>
             <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
               <CardTitle className="text-sm font-medium">Bookings</CardTitle>
-              <Calendar className="h-4 w-4 text-muted-foreground" />
+              <CalendarIcon className="h-4 w-4 text-muted-foreground" />
             </CardHeader>
             <CardContent>
               <div className="text-2xl font-bold">{stats?.completedBookings}/{stats?.totalBookings}</div>
@@ -141,19 +229,7 @@ const Reports = () => {
         <div className="grid gap-4 md:grid-cols-2">
           <Card>
             <CardHeader>
-              <div className="flex items-center justify-between">
-                <CardTitle>Revenue Trend</CardTitle>
-                <Select value={period} onValueChange={setPeriod}>
-                  <SelectTrigger className="w-32">
-                    <SelectValue />
-                  </SelectTrigger>
-                  <SelectContent>
-                    <SelectItem value="7">Last 7 days</SelectItem>
-                    <SelectItem value="30">Last 30 days</SelectItem>
-                    <SelectItem value="90">Last 90 days</SelectItem>
-                  </SelectContent>
-                </Select>
-              </div>
+              <CardTitle>Revenue Trend</CardTitle>
             </CardHeader>
             <CardContent>
               <ResponsiveContainer width="100%" height={300}>
@@ -171,31 +247,49 @@ const Reports = () => {
 
           <Card>
             <CardHeader>
-              <CardTitle>Service Distribution</CardTitle>
+              <CardTitle>Revenue by Department</CardTitle>
             </CardHeader>
             <CardContent>
               <ResponsiveContainer width="100%" height={300}>
-                <PieChart>
-                  <Pie
-                    data={serviceData}
-                    cx="50%"
-                    cy="50%"
-                    labelLine={false}
-                    label={({ name, percent }) => `${name}: ${(percent * 100).toFixed(0)}%`}
-                    outerRadius={80}
-                    fill="#8884d8"
-                    dataKey="value"
-                  >
-                    {serviceData?.map((entry, index) => (
-                      <Cell key={`cell-${index}`} fill={COLORS[index % COLORS.length]} />
-                    ))}
-                  </Pie>
+                <BarChart data={revenueByDepartment}>
+                  <CartesianGrid strokeDasharray="3 3" />
+                  <XAxis dataKey="name" tick={{ fontSize: 12 }} />
+                  <YAxis tick={{ fontSize: 12 }} />
                   <Tooltip />
-                </PieChart>
+                  <Legend />
+                  <Bar dataKey="revenue" fill="hsl(var(--primary))" name="Revenue (₹)" />
+                </BarChart>
               </ResponsiveContainer>
             </CardContent>
           </Card>
         </div>
+
+        <Card>
+          <CardHeader>
+            <CardTitle>Service Distribution</CardTitle>
+          </CardHeader>
+          <CardContent>
+            <ResponsiveContainer width="100%" height={300}>
+              <PieChart>
+                <Pie
+                  data={serviceData}
+                  cx="50%"
+                  cy="50%"
+                  labelLine={false}
+                  label={({ name, percent }) => `${name}: ${(percent * 100).toFixed(0)}%`}
+                  outerRadius={80}
+                  fill="#8884d8"
+                  dataKey="value"
+                >
+                  {serviceData?.map((entry, index) => (
+                    <Cell key={`cell-${index}`} fill={COLORS[index % COLORS.length]} />
+                  ))}
+                </Pie>
+                <Tooltip />
+              </PieChart>
+            </ResponsiveContainer>
+          </CardContent>
+        </Card>
       </div>
     </DashboardLayout>
   );

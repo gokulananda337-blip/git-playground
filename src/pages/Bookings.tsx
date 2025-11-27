@@ -316,20 +316,60 @@ const Bookings = () => {
                           checked={formData.services.some(s => s.id === service.id)}
                           onChange={(e) => {
                             if (e.target.checked) {
-                              setFormData({
-                                ...formData,
-                                services: [...formData.services, { id: service.id, name: service.name, price: service.base_price }]
-                              });
+                              const newServices = [...formData.services, { 
+                                id: service.id, 
+                                name: service.name, 
+                                price: service.base_price,
+                                duration: service.duration_minutes 
+                              }];
+                              
+                              // Auto-calculate expected end time
+                              if (formData.booking_time) {
+                                const totalMinutes = newServices.reduce((sum, s) => sum + (s.duration || 0), 0);
+                                const [hours, minutes] = formData.booking_time.split(":").map(Number);
+                                const endTime = new Date();
+                                endTime.setHours(hours, minutes + totalMinutes, 0, 0);
+                                const expectedEnd = `${String(endTime.getHours()).padStart(2, '0')}:${String(endTime.getMinutes()).padStart(2, '0')}`;
+                                
+                                setFormData({
+                                  ...formData,
+                                  services: newServices,
+                                  expected_end_time: expectedEnd
+                                });
+                              } else {
+                                setFormData({
+                                  ...formData,
+                                  services: newServices
+                                });
+                              }
                             } else {
-                              setFormData({
-                                ...formData,
-                                services: formData.services.filter(s => s.id !== service.id)
-                              });
+                              const newServices = formData.services.filter(s => s.id !== service.id);
+                              
+                              // Recalculate expected end time
+                              if (formData.booking_time && newServices.length > 0) {
+                                const totalMinutes = newServices.reduce((sum, s) => sum + (s.duration || 0), 0);
+                                const [hours, minutes] = formData.booking_time.split(":").map(Number);
+                                const endTime = new Date();
+                                endTime.setHours(hours, minutes + totalMinutes, 0, 0);
+                                const expectedEnd = `${String(endTime.getHours()).padStart(2, '0')}:${String(endTime.getMinutes()).padStart(2, '0')}`;
+                                
+                                setFormData({
+                                  ...formData,
+                                  services: newServices,
+                                  expected_end_time: expectedEnd
+                                });
+                              } else {
+                                setFormData({
+                                  ...formData,
+                                  services: newServices,
+                                  expected_end_time: ""
+                                });
+                              }
                             }
                           }}
                           className="rounded"
                         />
-                        <span className="text-sm">{service.name} - ₹{service.base_price}</span>
+                        <span className="text-sm">{service.name} - ₹{service.base_price} ({service.duration_minutes}m)</span>
                       </label>
                     ))}
                   </div>
