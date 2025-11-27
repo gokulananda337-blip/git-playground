@@ -18,8 +18,8 @@ All colors MUST be HSL.
     --popover: 0 0% 100%;
     --popover-foreground: 214 20% 20%;
 
-    /* Zoho blue - professional and trustworthy */
-    --primary: 215 98% 51%;
+    /* Zoho orange - vibrant and professional */
+    --primary: 14 100% 57%;
     --primary-foreground: 0 0% 100%;
 
     --secondary: 214 20% 95%;
@@ -36,7 +36,7 @@ All colors MUST be HSL.
 
     --border: 214 15% 88%;
     --input: 214 15% 92%;
-    --ring: 215 98% 51%;
+    --ring: 14 100% 57%;
 
     --success: 142 71% 45%;
     --success-foreground: 0 0% 100%;
@@ -50,15 +50,15 @@ All colors MUST be HSL.
     --radius: 0.375rem;
 
     /* Zoho-style gradients */
-    --gradient-primary: linear-gradient(135deg, hsl(215 98% 51%) 0%, hsl(215 85% 60%) 100%);
+    --gradient-primary: linear-gradient(135deg, hsl(14 100% 57%) 0%, hsl(25 95% 53%) 100%);
     --gradient-secondary: linear-gradient(180deg, hsl(0 0% 100%) 0%, hsl(214 20% 98%) 100%);
-    --gradient-hero: linear-gradient(135deg, hsl(215 98% 51%) 0%, hsl(215 70% 40%) 100%);
+    --gradient-hero: linear-gradient(135deg, hsl(14 100% 57%) 0%, hsl(14 90% 48%) 100%);
 
     /* Zoho-style shadows - subtle and clean */
     --shadow-sm: 0 1px 2px 0 rgba(0, 0, 0, 0.04);
     --shadow-md: 0 2px 8px 0 rgba(0, 0, 0, 0.08);
     --shadow-lg: 0 8px 16px 0 rgba(0, 0, 0, 0.1);
-    --shadow-blue: 0 4px 12px 0 rgba(37, 99, 235, 0.15);
+    --shadow-blue: 0 4px 12px 0 rgba(255, 102, 0, 0.15);
 
     /* Smooth transitions */
     --transition-base: all 0.15s cubic-bezier(0.4, 0, 0.2, 1);
@@ -67,12 +67,12 @@ All colors MUST be HSL.
     /* Sidebar - Zoho style */
     --sidebar-background: 214 25% 98%;
     --sidebar-foreground: 214 20% 25%;
-    --sidebar-primary: 215 98% 51%;
+    --sidebar-primary: 14 100% 57%;
     --sidebar-primary-foreground: 0 0% 100%;
     --sidebar-accent: 214 20% 94%;
     --sidebar-accent-foreground: 214 20% 25%;
     --sidebar-border: 214 15% 90%;
-    --sidebar-ring: 215 98% 51%;
+    --sidebar-ring: 14 100% 57%;
   }
 
   .dark {
@@ -139,6 +139,8 @@ All colors MUST be HSL.
   }
 
   body {
-    @apply bg-background text-foreground;
+    @apply bg-background text-foreground font-sans antialiased;
+    font-feature-settings: 'cv11', 'ss01';
+    font-variation-settings: 'opsz' 32;
   }
 }

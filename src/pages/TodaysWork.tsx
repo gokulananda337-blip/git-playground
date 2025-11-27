@@ -23,9 +23,12 @@ const TodaysWork = () => {
     "16:00", "16:30", "17:00", "17:30", "18:00", "18:30", "19:00"
   ];
 
-  // Get today's date in local timezone
+  // Get current time for comparison
+  const now = new Date();
+  const currentTime = format(now, "HH:mm");
   const todayLocal = format(new Date(), "yyyy-MM-dd");
   const selectedDateLocal = format(selectedDate, "yyyy-MM-dd");
+  const isToday = todayLocal === selectedDateLocal;
 
   const { data: bookings, refetch } = useQuery({
     queryKey: ["today-bookings", selectedDateLocal],
@@ -69,6 +72,11 @@ const TodaysWork = () => {
 
   const getBookingsForSlot = (slot: string) => {
     return bookings?.filter(b => b.booking_time === slot) || [];
+  };
+
+  const isSlotPast = (slot: string) => {
+    if (!isToday) return false;
+    return slot < currentTime;
   };
 
   const statusColors: Record<string, string> = {
