@@ -7,7 +7,7 @@ import { Input } from "@/components/ui/input";
 import { useToast } from "@/hooks/use-toast";
 import { supabase } from "@/integrations/supabase/client";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
-import { Search, FileText, Download, Send, DollarSign } from "lucide-react";
+import { Search, FileText, Download, Send, DollarSign, Building2 } from "lucide-react";
 import { format } from "date-fns";
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from "@/components/ui/dialog";
 import { Label } from "@/components/ui/label";
@@ -46,7 +46,7 @@ const Invoices = () => {
         .from("invoices")
         .select(`
           *,
-          customers (name, phone),
+          customers (name, phone, address),
           job_cards (
             vehicles (vehicle_number, brand, model)
           )
@@ -98,81 +98,142 @@ const Invoices = () => {
     }
 
     const doc = new jsPDF();
+    const pageWidth = doc.internal.pageSize.width;
     let y = 20;
 
-    // Company info (left)
-    doc.setFontSize(14);
-    doc.text(companyInfo.name || "", 20, y);
+    // Header with company info
+    doc.setFillColor(59, 130, 246);
+    doc.rect(0, 0, pageWidth, 50, 'F');
+    
+    doc.setTextColor(255, 255, 255);
+    doc.setFontSize(20);
+    doc.setFont(undefined, 'bold');
+    doc.text(companyInfo.name || "Car Wash", 20, 20);
+    
+    doc.setFontSize(9);
+    doc.setFont(undefined, 'normal');
+    if (companyInfo.address) doc.text(companyInfo.address, 20, 28);
+    if (companyInfo.phone) doc.text(`Phone: ${companyInfo.phone}`, 20, 34);
+    if (companyInfo.email) doc.text(`Email: ${companyInfo.email}`, 20, 40);
+
+    // Invoice details (right side)
+    doc.setFontSize(24);
+    doc.setFont(undefined, 'bold');
+    doc.text("INVOICE", pageWidth - 20, 20, { align: "right" });
+    
+    doc.setFontSize(9);
+    doc.setFont(undefined, 'normal');
+    doc.text(`#${invoice.invoice_number}`, pageWidth - 20, 28, { align: "right" });
+    doc.text(format(new Date(invoice.created_at), "MMM dd, yyyy"), pageWidth - 20, 34, { align: "right" });
+
+    // Reset text color
+    doc.setTextColor(0, 0, 0);
+    y = 60;
+
+    // Bill To section
     doc.setFontSize(10);
-    if (companyInfo.address) {
-      doc.text(companyInfo.address, 20, (y += 6));
-    }
-    if (companyInfo.phone) {
-      doc.text(`Phone: ${companyInfo.phone}`, 20, (y += 6));
-    }
-    if (companyInfo.email) {
-      doc.text(`Email: ${companyInfo.email}`, 20, (y += 6));
+    doc.setFont(undefined, 'bold');
+    doc.text("BILL TO:", 20, y);
+    
+    doc.setFont(undefined, 'normal');
+    doc.setFontSize(11);
+    doc.text(invoice.customers?.name || "N/A", 20, y + 6);
+    doc.setFontSize(9);
+    if (invoice.customers?.phone) doc.text(invoice.customers.phone, 20, y + 12);
+    if (invoice.customers?.address) doc.text(invoice.customers.address, 20, y + 18);
+
+    // Vehicle info (right side)
+    if (invoice.job_cards?.vehicles) {
+      doc.setFontSize(10);
+      doc.setFont(undefined, 'bold');
+      doc.text("VEHICLE:", pageWidth - 80, y);
+      
+      doc.setFont(undefined, 'normal');
+      doc.setFontSize(11);
+      doc.text(invoice.job_cards.vehicles.vehicle_number, pageWidth - 80, y + 6);
+      doc.setFontSize(9);
+      const vehicleDetails = `${invoice.job_cards.vehicles.brand || ""} ${invoice.job_cards.vehicles.model || ""}`.trim();
+      if (vehicleDetails) doc.text(vehicleDetails, pageWidth - 80, y + 12);
     }
 
-    // Invoice header (right)
-    const invoiceTop = 20;
-    doc.setFontSize(16);
-    doc.text("INVOICE", 190, invoiceTop, { align: "right" });
-    doc.setFontSize(10);
-    doc.text(`Invoice No: ${invoice.invoice_number}`, 190, invoiceTop + 8, { align: "right" });
-    doc.text(`Date: ${format(new Date(invoice.created_at), "MMM dd, yyyy")}`, 190, invoiceTop + 14, { align: "right" });
+    y += 30;
 
-    // Customer details
-    y += 14;
-    doc.setFontSize(12);
-    doc.text("Bill To:", 20, y);
+    // Services table header
+    doc.setFillColor(240, 240, 240);
+    doc.rect(20, y, pageWidth - 40, 10, 'F');
+    
     doc.setFontSize(10);
-    doc.text(invoice.customers?.name || "", 20, (y += 6));
-    if (invoice.customers?.phone) {
-      doc.text(invoice.customers.phone, 20, (y += 6));
-    }
+    doc.setFont(undefined, 'bold');
+    doc.text("DESCRIPTION", 25, y + 7);
+    doc.text("AMOUNT", pageWidth - 25, y + 7, { align: "right" });
 
-    // Services table
-    y += 10;
-    doc.setFontSize(12);
-    doc.text("Services", 20, y);
-    y += 6;
-    doc.setFontSize(10);
-    doc.text("Description", 20, y);
-    doc.text("Amount", 190, y, { align: "right" });
-    y += 4;
-    doc.line(20, y, 190, y);
+    y += 12;
+    doc.setDrawColor(220, 220, 220);
+    doc.line(20, y, pageWidth - 20, y);
 
+    // Services items
+    doc.setFont(undefined, 'normal');
+    doc.setFontSize(9);
     const items = Array.isArray(invoice.items) ? invoice.items : [];
     items.forEach((item: any) => {
-      y += 6;
-      doc.text(item.name || "Service", 20, y);
-      doc.text(`₹${Number(item.price || 0).toFixed(2)}`, 190, y, { align: "right" });
+      y += 8;
+      doc.text(item.name || "Service", 25, y);
+      doc.text(`₹${Number(item.price || 0).toFixed(2)}`, pageWidth - 25, y, { align: "right" });
     });
 
-    // Totals
-    y += 10;
-    doc.line(120, y, 190, y);
-    y += 6;
-    doc.text("Subtotal", 120, y);
-    doc.text(`₹${Number(invoice.subtotal).toFixed(2)}`, 190, y, { align: "right" });
+    y += 12;
+    doc.line(20, y, pageWidth - 20, y);
+
+    // Totals section
+    y += 8;
+    const totalsX = pageWidth - 80;
+    
+    doc.text("Subtotal:", totalsX, y);
+    doc.text(`₹${Number(invoice.subtotal).toFixed(2)}`, pageWidth - 25, y, { align: "right" });
+
     if (invoice.discount && Number(invoice.discount) > 0) {
       y += 6;
-      doc.text("Discount", 120, y);
-      doc.text(`-₹${Number(invoice.discount).toFixed(2)}`, 190, y, { align: "right" });
+      doc.setTextColor(34, 197, 94);
+      doc.text("Discount:", totalsX, y);
+      doc.text(`-₹${Number(invoice.discount).toFixed(2)}`, pageWidth - 25, y, { align: "right" });
+      doc.setTextColor(0, 0, 0);
     }
+
     if (invoice.tax_amount && Number(invoice.tax_amount) > 0) {
       y += 6;
-      doc.text("Tax", 120, y);
-      doc.text(`₹${Number(invoice.tax_amount).toFixed(2)}`, 190, y, { align: "right" });
+      doc.text("Tax:", totalsX, y);
+      doc.text(`₹${Number(invoice.tax_amount).toFixed(2)}`, pageWidth - 25, y, { align: "right" });
     }
-    y += 6;
-    doc.setFontSize(12);
-    doc.text("Total", 120, y);
-    doc.text(`₹${Number(invoice.total_amount).toFixed(2)}`, 190, y, { align: "right" });
 
-    doc.save(`${invoice.invoice_number}.pdf`);
-    toast({ title: "Invoice downloaded" });
+    y += 8;
+    doc.setDrawColor(59, 130, 246);
+    doc.setLineWidth(0.5);
+    doc.line(totalsX - 5, y, pageWidth - 20, y);
+
+    y += 8;
+    doc.setFontSize(12);
+    doc.setFont(undefined, 'bold');
+    doc.text("TOTAL:", totalsX, y);
+    doc.text(`₹${Number(invoice.total_amount).toFixed(2)}`, pageWidth - 25, y, { align: "right" });
+
+    // Payment status
+    y += 12;
+    doc.setFontSize(9);
+    doc.setFont(undefined, 'normal');
+    const status = invoice.payment_status || "unpaid";
+    doc.text(`Payment Status: ${status.toUpperCase()}`, 20, y);
+    if (invoice.payment_method) {
+      doc.text(`Payment Method: ${invoice.payment_method}`, 20, y + 6);
+    }
+
+    // Footer
+    const footerY = doc.internal.pageSize.height - 20;
+    doc.setFontSize(8);
+    doc.setTextColor(128, 128, 128);
+    doc.text("Thank you for your business!", pageWidth / 2, footerY, { align: "center" });
+
+    doc.save(`Invoice_${invoice.invoice_number}.pdf`);
+    toast({ title: "Invoice downloaded successfully" });
   };
 
   const sendWhatsApp = (invoice: any) => {
@@ -181,7 +242,7 @@ const Invoices = () => {
       toast({ title: "No customer phone number", variant: "destructive" });
       return;
     }
-    const message = `Invoice ${invoice.invoice_number}\nTotal: ₹${Number(invoice.total_amount).toFixed(2)}\nStatus: ${invoice.payment_status || "unpaid"}`;
+    const message = `*Invoice ${invoice.invoice_number}*\n\nTotal Amount: ₹${Number(invoice.total_amount).toFixed(2)}\nStatus: ${invoice.payment_status || "unpaid"}\n\nThank you for your business!`;
     const url = `https://wa.me/${phone}?text=${encodeURIComponent(message)}`;
     window.open(url, "_blank");
   };
@@ -200,6 +261,17 @@ const Invoices = () => {
             <h1 className="text-3xl font-bold">Invoices</h1>
             <p className="text-muted-foreground">Manage billing and payments</p>
           </div>
+          {companyInfo && (
+            <Card className="p-3 bg-gradient-to-br from-primary/5 to-primary/10 border-primary/20">
+              <div className="flex items-start gap-3">
+                <Building2 className="h-5 w-5 text-primary mt-1" />
+                <div className="text-sm">
+                  <p className="font-semibold">{companyInfo.name}</p>
+                  {companyInfo.phone && <p className="text-xs text-muted-foreground">{companyInfo.phone}</p>}
+                </div>
+              </div>
+            </Card>
+          )}
         </div>
 
         <Card>
@@ -224,86 +296,84 @@ const Invoices = () => {
             ) : (
               <div className="space-y-4">
                 {filteredInvoices?.map((invoice) => (
-                  <Card key={invoice.id} className="hover:shadow-md transition-shadow">
-                    <CardContent className="p-4">
-                      <div className="flex items-start justify-between">
-                        <div className="space-y-3 flex-1">
-                          <div className="flex items-center gap-3">
-                            <FileText className="h-5 w-5 text-primary" />
-                            <div>
-                              <p className="font-bold text-lg">{invoice.invoice_number}</p>
-                              <p className="text-xs text-muted-foreground">
-                                {format(new Date(invoice.created_at), "MMM dd, yyyy HH:mm")}
-                              </p>
+                  <Card key={invoice.id} className="hover:shadow-lg transition-all border-border/50">
+                    <CardContent className="p-6">
+                      <div className="flex items-start justify-between gap-6">
+                        <div className="space-y-4 flex-1">
+                          <div className="flex items-center gap-4">
+                            <div className="flex items-center gap-3">
+                              <div className="w-12 h-12 rounded-lg bg-primary/10 flex items-center justify-center">
+                                <FileText className="h-6 w-6 text-primary" />
+                              </div>
+                              <div>
+                                <p className="font-bold text-xl">{invoice.invoice_number}</p>
+                                <p className="text-sm text-muted-foreground">
+                                  {format(new Date(invoice.created_at), "MMM dd, yyyy 'at' HH:mm")}
+                                </p>
+                              </div>
                             </div>
-                            <Badge className={`${statusColors[invoice.payment_status || "unpaid"]} text-white ml-2 capitalize`}>
+                            <Badge className={`${statusColors[invoice.payment_status || "unpaid"]} text-white capitalize`}>
                               {invoice.payment_status || "unpaid"}
                             </Badge>
                           </div>
-                          <div className="grid grid-cols-2 gap-4">
+                          
+                          <div className="grid grid-cols-2 gap-6 pt-3 border-t">
                             <div>
-                              <p className="text-sm text-muted-foreground">Customer</p>
-                              <p className="font-medium">{invoice.customers?.name}</p>
-                              <p className="text-xs text-muted-foreground">{invoice.customers?.phone}</p>
+                              <p className="text-sm text-muted-foreground mb-1">Customer</p>
+                              <p className="font-semibold">{invoice.customers?.name}</p>
+                              <p className="text-sm text-muted-foreground">{invoice.customers?.phone}</p>
                             </div>
                             <div>
-                              <p className="text-sm text-muted-foreground">Vehicle</p>
-                              <p className="font-medium">{invoice.job_cards?.vehicles?.vehicle_number}</p>
-                              <p className="text-xs text-muted-foreground">
+                              <p className="text-sm text-muted-foreground mb-1">Vehicle</p>
+                              <p className="font-semibold">{invoice.job_cards?.vehicles?.vehicle_number || "N/A"}</p>
+                              <p className="text-sm text-muted-foreground">
                                 {invoice.job_cards?.vehicles?.brand} {invoice.job_cards?.vehicles?.model}
                               </p>
                             </div>
                           </div>
-                          <div className="border-t pt-3">
-                            <div className="grid grid-cols-4 gap-2 text-sm">
-                              <div>
-                                <p className="text-muted-foreground">Subtotal</p>
-                                <p className="font-medium">₹{Number(invoice.subtotal).toFixed(2)}</p>
-                              </div>
+                          
+                          <div className="flex items-center justify-between pt-3 border-t">
+                            <div className="flex gap-4 text-sm">
                               {invoice.discount && Number(invoice.discount) > 0 && (
-                                <div>
-                                  <p className="text-muted-foreground">Discount</p>
-                                  <p className="font-medium text-green-600">-₹{Number(invoice.discount).toFixed(2)}</p>
-                                </div>
+                                <span className="text-green-600">Discount: ₹{Number(invoice.discount).toFixed(2)}</span>
                               )}
                               {invoice.tax_amount && Number(invoice.tax_amount) > 0 && (
-                                <div>
-                                  <p className="text-muted-foreground">Tax</p>
-                                  <p className="font-medium">₹{Number(invoice.tax_amount).toFixed(2)}</p>
-                                </div>
+                                <span>Tax: ₹{Number(invoice.tax_amount).toFixed(2)}</span>
                               )}
-                              <div>
-                                <p className="text-muted-foreground">Total</p>
-                                <p className="font-bold text-lg text-primary">₹{Number(invoice.total_amount).toFixed(2)}</p>
-                              </div>
+                            </div>
+                            <div className="text-right">
+                              <p className="text-sm text-muted-foreground">Total Amount</p>
+                              <p className="text-3xl font-bold text-primary">₹{Number(invoice.total_amount).toFixed(2)}</p>
                             </div>
                           </div>
+                          
                           {invoice.payment_method && (
-                            <p className="text-xs text-muted-foreground">
-                              Payment: <span className="capitalize">{invoice.payment_method}</span>
+                            <p className="text-xs text-muted-foreground pt-2 border-t">
+                              Paid via <span className="capitalize font-medium">{invoice.payment_method}</span>
                               {invoice.paid_at && ` on ${format(new Date(invoice.paid_at), "MMM dd, yyyy")}`}
                             </p>
                           )}
                         </div>
-                        <div className="flex flex-col gap-2 ml-4">
-                          <Button size="sm" variant="outline" className="gap-1" onClick={() => downloadPDF(invoice)}>
-                            <Download className="h-3 w-3" />
-                            PDF
+                        
+                        <div className="flex flex-col gap-2">
+                          <Button size="sm" variant="outline" className="gap-2" onClick={() => downloadPDF(invoice)}>
+                            <Download className="h-4 w-4" />
+                            Download PDF
                           </Button>
-                          <Button size="sm" variant="outline" className="gap-1" onClick={() => sendWhatsApp(invoice)}>
-                            <Send className="h-3 w-3" />
-                            WhatsApp
+                          <Button size="sm" variant="outline" className="gap-2" onClick={() => sendWhatsApp(invoice)}>
+                            <Send className="h-4 w-4" />
+                            Send WhatsApp
                           </Button>
                           {invoice.payment_status !== "paid" && (
                             <Button 
                               size="sm" 
-                              className="gap-1"
+                              className="gap-2"
                               onClick={() => {
                                 setSelectedInvoice(invoice);
                                 setPaymentDialogOpen(true);
                               }}
                             >
-                              <DollarSign className="h-3 w-3" />
+                              <DollarSign className="h-4 w-4" />
                               Record Payment
                             </Button>
                           )}
@@ -325,7 +395,7 @@ const Invoices = () => {
             <div className="space-y-4">
               <div>
                 <p className="text-sm text-muted-foreground">Invoice: {selectedInvoice?.invoice_number}</p>
-                <p className="text-lg font-bold">Amount: ₹{selectedInvoice && Number(selectedInvoice.total_amount).toFixed(2)}</p>
+                <p className="text-2xl font-bold text-primary mt-1">₹{selectedInvoice && Number(selectedInvoice.total_amount).toFixed(2)}</p>
               </div>
               <div className="space-y-2">
                 <Label>Payment Method</Label>

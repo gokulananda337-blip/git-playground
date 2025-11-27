@@ -28,18 +28,34 @@ const Vehicles = () => {
     queryKey: ["vehicle-history", selectedVehicle?.id],
     queryFn: async () => {
       if (!selectedVehicle) return [];
-      const { data, error } = await supabase
+      
+      // First get all bookings for this vehicle
+      const { data: bookings, error: bookingsError } = await supabase
         .from("bookings")
-        .select(`
-          *,
-          customers (name),
-          job_cards (status, check_in_time, check_out_time)
-        `)
+        .select("*")
         .eq("vehicle_id", selectedVehicle.id)
         .order("booking_date", { ascending: false });
       
-      if (error) throw error;
-      return data;
+      if (bookingsError) throw bookingsError;
+      if (!bookings) return [];
+      
+      // Then get job cards for each booking
+      const bookingsWithJobCards = await Promise.all(
+        bookings.map(async (booking) => {
+          const { data: jobCard } = await supabase
+            .from("job_cards")
+            .select("status, check_in_time, check_out_time")
+            .eq("booking_id", booking.id)
+            .maybeSingle();
+          
+          return {
+            ...booking,
+            job_card: jobCard
+          };
+        })
+      );
+      
+      return bookingsWithJobCards;
     },
     enabled: !!selectedVehicle
   });
@@ -332,16 +348,19 @@ const Vehicles = () => {
                           <p className="font-medium">{format(new Date(record.booking_date), "MMM dd, yyyy")} - {record.booking_time}</p>
                           <Badge className="capitalize">{record.status}</Badge>
                         </div>
-                        {record.job_cards && (
+                        {record.job_card && (
                           <div className="text-sm text-muted-foreground">
-                            <p>Job Status: <span className="capitalize">{record.job_cards.status}</span></p>
-                            {record.job_cards.check_in_time && (
-                              <p>Check-in: {format(new Date(record.job_cards.check_in_time), "MMM dd, HH:mm")}</p>
+                            <p>Job Status: <span className="capitalize">{record.job_card.status?.replace("_", " ")}</span></p>
+                            {record.job_card.check_in_time && (
+                              <p>Check-in: {format(new Date(record.job_card.check_in_time), "MMM dd, HH:mm")}</p>
                             )}
-                            {record.job_cards.check_out_time && (
-                              <p>Check-out: {format(new Date(record.job_cards.check_out_time), "MMM dd, HH:mm")}</p>
+                            {record.job_card.check_out_time && (
+                              <p>Check-out: {format(new Date(record.job_card.check_out_time), "MMM dd, HH:mm")}</p>
                             )}
                           </div>
+                        )}
+                        {!record.job_card && record.status === "confirmed" && (
+                          <p className="text-sm text-muted-foreground">Job card not yet created</p>
                         )}
                         <div className="flex flex-wrap gap-1">
                           {Array.isArray(record.services) && record.services.map((service: any, idx: number) => (

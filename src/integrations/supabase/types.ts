@@ -520,6 +520,8 @@ export type Database = {
           lifecycle_stages: Json | null
           materials_required: Json | null
           name: string
+          package_services: Json | null
+          service_type: string | null
           updated_at: string
           user_id: string
         }
@@ -534,6 +536,8 @@ export type Database = {
           lifecycle_stages?: Json | null
           materials_required?: Json | null
           name: string
+          package_services?: Json | null
+          service_type?: string | null
           updated_at?: string
           user_id: string
         }
@@ -548,6 +552,8 @@ export type Database = {
           lifecycle_stages?: Json | null
           materials_required?: Json | null
           name?: string
+          package_services?: Json | null
+          service_type?: string | null
           updated_at?: string
           user_id?: string
         }

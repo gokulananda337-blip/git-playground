@@ -107,27 +107,27 @@ const TodaysWork = () => {
 
         <div className="grid gap-3">
         {timeSlots.map((slot) => {
-            // For the current day, hide past time slots
+            const slotBookings = getBookingsForSlot(slot);
+            const isEmpty = slotBookings.length === 0;
+            
+            // Mark past slots for current day
+            let isPast = false;
             if (selectedDateLocal === todayLocal) {
               const now = new Date();
               const [hours, minutes] = slot.split(":").map(Number);
               const slotTime = new Date();
               slotTime.setHours(hours, minutes, 0, 0);
-              if (slotTime < now) {
-                return null;
-              }
+              isPast = slotTime < now;
             }
-
-            const slotBookings = getBookingsForSlot(slot);
-            const isEmpty = slotBookings.length === 0;
             
             return (
-              <Card key={slot} className={isEmpty ? "opacity-50" : "hover:shadow-md transition-shadow"}>
+              <Card key={slot} className={`${isEmpty ? "opacity-50" : "hover:shadow-md"} ${isPast ? "bg-muted/30" : ""} transition-shadow`}>
                 <CardHeader className="pb-3">
                   <CardTitle className="flex items-center justify-between">
                     <div className="flex items-center gap-2">
                       <Clock className="h-5 w-5 text-primary" />
                       <span className="text-lg font-bold">{slot}</span>
+                      {isPast && <Badge variant="outline" className="text-xs">Past</Badge>}
                     </div>
                     {slotBookings.length > 0 && (
                       <Badge variant="secondary">{slotBookings.length} booking(s)</Badge>
