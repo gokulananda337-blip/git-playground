@@ -32,7 +32,7 @@ const Reports = () => {
       const { data: { user } } = await supabase.auth.getUser();
       if (!user) throw new Error("Not authenticated");
 
-      const [customers, vehicles, bookings, invoices, services, jobCards] = await Promise.all([
+      const [customers, vehicles, bookings, invoices, services, jobCards, expenses] = await Promise.all([
         supabase.from("customers").select("id", { count: "exact" }).eq("user_id", user.id),
         supabase.from("vehicles").select("id", { count: "exact" }).eq("user_id", user.id),
         supabase.from("bookings")
@@ -50,12 +50,18 @@ const Reports = () => {
           .select("status, check_in_time, check_out_time")
           .eq("user_id", user.id)
           .gte("created_at", dateRange.from.toISOString())
-          .lte("created_at", dateRange.to.toISOString())
+          .lte("created_at", dateRange.to.toISOString()),
+        supabase.from("expenses")
+          .select("amount, expense_date, category")
+          .eq("user_id", user.id)
+          .gte("expense_date", format(dateRange.from, "yyyy-MM-dd"))
+          .lte("expense_date", format(dateRange.to, "yyyy-MM-dd"))
       ]);
 
       const totalRevenue = invoices.data?.reduce((sum, inv) => sum + Number(inv.total_amount), 0) || 0;
       const paidRevenue = invoices.data?.filter(inv => inv.payment_status === "paid").reduce((sum, inv) => sum + Number(inv.total_amount), 0) || 0;
       const pendingRevenue = totalRevenue - paidRevenue;
+      const totalExpenses = expenses.data?.reduce((sum, exp) => sum + Number(exp.amount), 0) || 0;
 
       const avgTicketSize = invoices.data?.length ? totalRevenue / invoices.data.length : 0;
       const conversionRate = bookings.data?.length ? (bookings.data.filter(b => b.status === "completed").length / bookings.data.length) * 100 : 0;
@@ -69,6 +75,8 @@ const Reports = () => {
         totalRevenue,
         paidRevenue,
         pendingRevenue,
+        totalExpenses,
+        netProfit: totalRevenue - totalExpenses,
         avgTicketSize,
         conversionRate,
         activeServices: services.data?.filter(s => s.is_active).length || 0,
@@ -235,7 +243,7 @@ const Reports = () => {
         </div>
 
         {/* KPI Cards - Row 1 */}
-        <div className="grid gap-4 md:grid-cols-2 lg:grid-cols-4">
+        <div className="grid gap-4 md:grid-cols-2 lg:grid-cols-5">
           <Card className="shadow-md hover:shadow-lg transition-all border-l-4 border-l-primary">
             <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
               <CardTitle className="text-sm font-medium">Total Revenue</CardTitle>
@@ -244,31 +252,42 @@ const Reports = () => {
             <CardContent>
               <div className="text-3xl font-bold text-primary">₹{stats?.totalRevenue.toFixed(2)}</div>
               <div className="flex items-center gap-2 mt-2">
-                <div className="text-xs text-green-600 font-semibold">₹{stats?.paidRevenue.toFixed(2)} Paid</div>
-                <div className="text-xs text-amber-600">₹{stats?.pendingRevenue.toFixed(2)} Pending</div>
+                <div className="text-xs text-success font-semibold">₹{stats?.paidRevenue.toFixed(2)} Paid</div>
+                <div className="text-xs text-warning">₹{stats?.pendingRevenue.toFixed(2)} Pending</div>
               </div>
+            </CardContent>
+          </Card>
+
+          <Card className="shadow-md hover:shadow-lg transition-all border-l-4 border-l-destructive">
+            <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
+              <CardTitle className="text-sm font-medium">Total Expenses</CardTitle>
+              <TrendingDown className="h-5 w-5 text-destructive" />
+            </CardHeader>
+            <CardContent>
+              <div className="text-3xl font-bold text-destructive">₹{stats?.totalExpenses.toFixed(2)}</div>
+              <p className="text-xs text-muted-foreground mt-2">Business expenses</p>
+            </CardContent>
+          </Card>
+
+          <Card className="shadow-md hover:shadow-lg transition-all border-l-4 border-l-success">
+            <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
+              <CardTitle className="text-sm font-medium">Net Profit</CardTitle>
+              <TrendingUp className="h-5 w-5 text-success" />
+            </CardHeader>
+            <CardContent>
+              <div className="text-3xl font-bold text-success">₹{stats?.netProfit.toFixed(2)}</div>
+              <p className="text-xs text-muted-foreground mt-2">Revenue - Expenses</p>
             </CardContent>
           </Card>
 
           <Card className="shadow-md hover:shadow-lg transition-all border-l-4 border-l-accent">
             <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
               <CardTitle className="text-sm font-medium">Avg Ticket Size</CardTitle>
-              <TrendingUp className="h-5 w-5 text-accent" />
+              <Activity className="h-5 w-5 text-accent" />
             </CardHeader>
             <CardContent>
               <div className="text-3xl font-bold text-accent">₹{stats?.avgTicketSize.toFixed(0)}</div>
               <p className="text-xs text-muted-foreground mt-2">Per invoice average</p>
-            </CardContent>
-          </Card>
-
-          <Card className="shadow-md hover:shadow-lg transition-all border-l-4 border-l-success">
-            <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
-              <CardTitle className="text-sm font-medium">Conversion Rate</CardTitle>
-              <Activity className="h-5 w-5 text-success" />
-            </CardHeader>
-            <CardContent>
-              <div className="text-3xl font-bold text-success">{stats?.conversionRate.toFixed(1)}%</div>
-              <p className="text-xs text-muted-foreground mt-2">Bookings completed</p>
             </CardContent>
           </Card>
 

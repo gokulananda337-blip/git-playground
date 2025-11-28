@@ -48,7 +48,7 @@ const Services = () => {
     base_price: "",
     duration_minutes: "30",
     is_active: true,
-    lifecycle_stages: DEFAULT_STAGES,
+    lifecycle_stages: [] as string[],
     service_type: "service" as "service" | "subscription" | "package",
     package_services: [] as string[],
   });
@@ -157,7 +157,7 @@ const Services = () => {
       base_price: service.base_price.toString(),
       duration_minutes: service.duration_minutes.toString(),
       is_active: service.is_active ?? true,
-      lifecycle_stages: Array.isArray(service.lifecycle_stages) ? service.lifecycle_stages : DEFAULT_STAGES,
+      lifecycle_stages: Array.isArray(service.lifecycle_stages) ? service.lifecycle_stages : [],
       service_type: (service as any).service_type || "service",
       package_services: (service as any).package_services || [],
     });
@@ -174,7 +174,7 @@ const Services = () => {
       base_price: "",
       duration_minutes: "30",
       is_active: true,
-      lifecycle_stages: DEFAULT_STAGES,
+      lifecycle_stages: [],
       service_type: "service",
       package_services: [],
     });
@@ -194,16 +194,15 @@ const Services = () => {
 
   const addCustomStage = () => {
     if (!customStage.trim()) return;
-    const stageValue = customStage.toLowerCase().replace(/\s+/g, "_");
-    if (!formData.lifecycle_stages.includes(stageValue)) {
-      setFormData({ ...formData, lifecycle_stages: [...formData.lifecycle_stages, stageValue] });
+    if (!formData.lifecycle_stages.includes(customStage.trim())) {
+      setFormData({ ...formData, lifecycle_stages: [...formData.lifecycle_stages, customStage.trim()] });
       setCustomStage("");
-      toast({ title: "Custom stage added" });
+      toast({ title: "Stage added" });
     }
   };
 
-  const removeCustomStage = (stage: string) => {
-    setFormData({ ...formData, lifecycle_stages: formData.lifecycle_stages.filter(s => s !== stage) });
+  const removeCustomStage = (index: number) => {
+    setFormData({ ...formData, lifecycle_stages: formData.lifecycle_stages.filter((_, i) => i !== index) });
   };
 
   return (
@@ -401,34 +400,42 @@ const Services = () => {
               </div>
               
               <div>
-                <Label className="mb-3 block">Lifecycle Stages * (Numbered Order)</Label>
+                <Label className="mb-3 block">Lifecycle Stages (Numbered Order)</Label>
+                <p className="text-xs text-muted-foreground mb-3">
+                  Add custom workflow stages. The last stage means work is finished.
+                </p>
                 <div className="space-y-3">
-                  <div className="grid grid-cols-1 gap-2 p-3 border rounded-lg border-border/50 bg-muted/20">
-                    {formData.lifecycle_stages.map((stage, index) => (
-                      <div key={stage} className="flex items-center justify-between p-2 hover:bg-accent/10 rounded border border-border/30">
-                        <div className="flex items-center gap-3 flex-1">
-                          <div className="w-8 h-8 rounded-full bg-primary text-primary-foreground flex items-center justify-center font-bold text-sm">
-                            {index + 1}
+                  {formData.lifecycle_stages.length > 0 && (
+                    <div className="grid grid-cols-1 gap-2 p-3 border rounded-lg border-border/50 bg-muted/20">
+                      {formData.lifecycle_stages.map((stage, index) => (
+                        <div key={index} className="flex items-center justify-between p-2 hover:bg-accent/10 rounded border border-border/30">
+                          <div className="flex items-center gap-3 flex-1">
+                            <div className="w-8 h-8 rounded-full bg-primary text-primary-foreground flex items-center justify-center font-bold text-sm">
+                              {index + 1}
+                            </div>
+                            <span className="text-sm font-medium">{stage}</span>
+                            {index === formData.lifecycle_stages.length - 1 && (
+                              <Badge variant="outline" className="ml-2 text-xs bg-success/10 text-success border-success/20">
+                                Final
+                              </Badge>
+                            )}
                           </div>
-                          <span className="text-sm capitalize font-medium">{stage.replace(/_/g, " ")}</span>
-                        </div>
-                        {!DEFAULT_STAGES.includes(stage) && (
                           <Button
                             type="button"
                             variant="ghost"
                             size="sm"
-                            onClick={() => removeCustomStage(stage)}
+                            onClick={() => removeCustomStage(index)}
                             className="h-6 w-6 p-0 text-destructive hover:text-destructive hover:bg-destructive/10"
                           >
                             ×
                           </Button>
-                        )}
-                      </div>
-                    ))}
-                  </div>
+                        </div>
+                      ))}
+                    </div>
+                  )}
                   <div className="flex gap-2">
                     <Input
-                      placeholder="Add custom stage..."
+                      placeholder="Add stage name..."
                       value={customStage}
                       onChange={(e) => setCustomStage(e.target.value)}
                       onKeyDown={(e) => e.key === "Enter" && (e.preventDefault(), addCustomStage())}
@@ -439,9 +446,6 @@ const Services = () => {
                     </Button>
                   </div>
                 </div>
-                <p className="text-xs text-muted-foreground mt-2">
-                  Stages are numbered in order. They'll appear 1→2→3 in job cards workflow.
-                </p>
               </div>
 
               <div className="flex items-center gap-2">
