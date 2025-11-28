@@ -112,36 +112,36 @@ const Dashboard = () => {
       title: "Total Customers",
       value: stats.totalCustomers,
       icon: Users,
-      color: "text-blue-600",
-      bgColor: "bg-blue-50",
+      color: "text-primary",
+      bgColor: "bg-primary/10",
     },
     {
       title: "Total Vehicles",
       value: stats.totalVehicles,
       icon: Car,
-      color: "text-green-600",
-      bgColor: "bg-green-50",
+      color: "text-accent",
+      bgColor: "bg-accent/10",
     },
     {
       title: "Today's Bookings",
       value: stats.todayBookings,
       icon: Calendar,
-      color: "text-purple-600",
-      bgColor: "bg-purple-50",
+      color: "text-warning",
+      bgColor: "bg-warning/10",
     },
     {
       title: "Monthly Revenue",
       value: `₹${stats.monthlyRevenue.toLocaleString()}`,
       icon: IndianRupee,
-      color: "text-primary",
-      bgColor: "bg-primary/10",
+      color: "text-success",
+      bgColor: "bg-success/10",
     },
     {
       title: "Today's Revenue",
       value: `₹${stats.todayRevenue.toLocaleString()}`,
-      icon: IndianRupee,
-      color: "text-success",
-      bgColor: "bg-success/10",
+      icon: TrendingUp,
+      color: "text-primary",
+      bgColor: "bg-primary/10",
     },
     {
       title: "Pending Jobs",
@@ -154,15 +154,15 @@ const Dashboard = () => {
       title: "Today's Due Cars",
       value: stats.todayDueCars,
       icon: Car,
-      color: "text-info",
-      bgColor: "bg-info/10",
+      color: "text-accent",
+      bgColor: "bg-accent/10",
     },
     {
       title: "Available Slots",
       value: `${stats.timeSlotsAvailable}/${stats.timeSlotsFilled + stats.timeSlotsAvailable}`,
       icon: Clock,
-      color: "text-accent",
-      bgColor: "bg-accent/10",
+      color: "text-success",
+      bgColor: "bg-success/10",
     },
   ];
 
@@ -243,10 +243,10 @@ const Dashboard = () => {
     <DashboardLayout>
       <div className="p-6 space-y-6">
         {/* Welcome Section */}
-        <div className="bg-gradient-to-r from-primary via-accent to-primary p-6 rounded-lg text-primary-foreground">
-          <h1 className="text-3xl font-bold mb-2">Welcome to AutoWash Pro</h1>
-          <p className="text-primary-foreground/90">
-            Manage your car wash business efficiently with our comprehensive platform
+        <div className="bg-gradient-to-r from-primary/10 via-accent/10 to-primary/10 border border-primary/20 p-8 rounded-lg">
+          <h1 className="text-3xl font-bold mb-2 text-foreground">Welcome to AutoWash Pro</h1>
+          <p className="text-muted-foreground">
+            {new Date().toLocaleDateString('en-US', { weekday: 'long', year: 'numeric', month: 'long', day: 'numeric' })}
           </p>
         </div>
 
@@ -255,19 +255,19 @@ const Dashboard = () => {
           {statCards.map((stat, index) => {
             const Icon = stat.icon;
             return (
-              <Card key={index} className="hover:shadow-lg transition-shadow">
-                <CardHeader className="flex flex-row items-center justify-between pb-2">
+              <Card key={index} className="hover:shadow-lg transition-all hover:scale-105 border border-border/50">
+                <CardHeader className="flex flex-row items-center justify-between pb-3">
                   <CardTitle className="text-sm font-medium text-muted-foreground">
                     {stat.title}
                   </CardTitle>
-                  <div className={`p-2 rounded-lg ${stat.bgColor}`}>
-                    <Icon className={`h-4 w-4 ${stat.color}`} />
+                  <div className={`p-3 rounded-lg ${stat.bgColor}`}>
+                    <Icon className={`h-5 w-5 ${stat.color}`} />
                   </div>
                 </CardHeader>
                 <CardContent>
-                  <div className="text-2xl font-bold">
+                  <div className={`text-3xl font-bold ${stat.color}`}>
                     {loading ? (
-                      <div className="h-8 w-24 bg-muted animate-pulse rounded"></div>
+                      <div className="h-9 w-28 bg-muted animate-pulse rounded"></div>
                     ) : (
                       stat.value
                     )}
@@ -279,35 +279,41 @@ const Dashboard = () => {
         </div>
 
         {/* Today's Bookings Timeline */}
-        <Card>
-          <CardHeader>
+        <Card className="border-border/50">
+          <CardHeader className="border-b bg-muted/30">
             <CardTitle className="flex items-center gap-2">
-              <Calendar className="h-5 w-5" />
-              Today's Schedule
+              <Calendar className="h-5 w-5 text-primary" />
+              Today's Schedule - {new Date().toLocaleDateString('en-US', { month: 'short', day: 'numeric' })}
             </CardTitle>
           </CardHeader>
-          <CardContent>
+          <CardContent className="pt-6">
             {todayBookings.length === 0 ? (
-              <p className="text-muted-foreground text-center py-4">No bookings scheduled for today</p>
+              <div className="text-center py-12">
+                <Calendar className="h-12 w-12 text-muted-foreground mx-auto mb-3 opacity-50" />
+                <p className="text-muted-foreground">No bookings scheduled for today</p>
+                <Button className="mt-4" size="sm" onClick={() => navigate('/bookings')}>
+                  Create Booking
+                </Button>
+              </div>
             ) : (
               <div className="space-y-3">
                 {todayBookings.map((booking) => (
-                  <div key={booking.id} className="flex items-center gap-4 p-3 rounded-lg border hover:bg-accent/5 transition-colors">
-                    <div className="flex items-center gap-2 min-w-20">
-                      <Clock className="h-4 w-4 text-muted-foreground" />
-                      <span className="font-medium">{booking.booking_time}</span>
+                  <div key={booking.id} className="flex items-center gap-4 p-4 rounded-lg border border-border/50 hover:border-primary/30 hover:bg-primary/5 transition-all">
+                    <div className="flex items-center gap-2 min-w-24 bg-primary/10 px-3 py-2 rounded-md">
+                      <Clock className="h-4 w-4 text-primary" />
+                      <span className="font-semibold text-primary">{booking.booking_time}</span>
                     </div>
                     <div className="flex-1 grid grid-cols-2 gap-4">
                       <div>
-                        <p className="font-medium">{booking.customers?.name}</p>
-                        <p className="text-xs text-muted-foreground">{booking.customers?.phone}</p>
+                        <p className="font-semibold text-foreground">{booking.customers?.name}</p>
+                        <p className="text-sm text-muted-foreground">{booking.customers?.phone}</p>
                       </div>
                       <div>
-                        <p className="font-medium">{booking.vehicles?.vehicle_number}</p>
-                        <p className="text-xs text-muted-foreground">{booking.vehicles?.brand} {booking.vehicles?.model}</p>
+                        <p className="font-semibold text-foreground">{booking.vehicles?.vehicle_number}</p>
+                        <p className="text-sm text-muted-foreground">{booking.vehicles?.brand} {booking.vehicles?.model}</p>
                       </div>
                     </div>
-                    <Button size="sm" onClick={() => startJobCard(booking)}>
+                    <Button onClick={() => startJobCard(booking)} className="shadow-md">
                       Start Job
                     </Button>
                   </div>
@@ -319,55 +325,55 @@ const Dashboard = () => {
 
         {/* Quick Actions */}
         <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
-          <Card className="hover:shadow-lg transition-shadow cursor-pointer">
-            <CardHeader>
-              <CardTitle className="flex items-center gap-2">
-                <TrendingUp className="h-5 w-5 text-success" />
+          <Card className="hover:shadow-lg transition-all hover:scale-105 cursor-pointer border-border/50" onClick={() => navigate('/invoices')}>
+            <CardHeader className="border-b bg-success/5">
+              <CardTitle className="flex items-center gap-2 text-success">
+                <TrendingUp className="h-5 w-5" />
                 Recent Activity
               </CardTitle>
             </CardHeader>
-            <CardContent>
+            <CardContent className="pt-4">
               <p className="text-sm text-muted-foreground">
-                View your latest bookings and transactions
+                View your latest invoices and transactions
               </p>
             </CardContent>
           </Card>
 
           <Card 
-            className="hover:shadow-lg transition-shadow cursor-pointer"
+            className="hover:shadow-lg transition-all hover:scale-105 cursor-pointer border-border/50"
             onClick={() => navigate('/job-cards')}
           >
-            <CardHeader>
-              <CardTitle className="flex items-center gap-2">
-                <Clock className="h-5 w-5 text-warning" />
+            <CardHeader className="border-b bg-warning/5">
+              <CardTitle className="flex items-center gap-2 text-warning">
+                <Clock className="h-5 w-5" />
                 Pending Jobs
               </CardTitle>
             </CardHeader>
-            <CardContent>
-              <div className="text-3xl font-bold text-warning">
+            <CardContent className="pt-4">
+              <div className="text-4xl font-bold text-warning mb-2">
                 {stats.pendingJobs}
               </div>
-              <p className="text-sm text-muted-foreground mt-2">
-                Track ongoing job cards and services
+              <p className="text-sm text-muted-foreground">
+                Track ongoing job cards
               </p>
             </CardContent>
           </Card>
 
           <Card 
-            className="hover:shadow-lg transition-shadow cursor-pointer"
+            className="hover:shadow-lg transition-all hover:scale-105 cursor-pointer border-border/50"
             onClick={() => navigate('/bookings')}
           >
-            <CardHeader>
-              <CardTitle className="flex items-center gap-2">
-                <Calendar className="h-5 w-5 text-info" />
+            <CardHeader className="border-b bg-primary/5">
+              <CardTitle className="flex items-center gap-2 text-primary">
+                <Calendar className="h-5 w-5" />
                 Schedule
               </CardTitle>
             </CardHeader>
-            <CardContent>
-              <div className="text-3xl font-bold text-info">
+            <CardContent className="pt-4">
+              <div className="text-4xl font-bold text-primary mb-2">
                 {stats.todayDueCars}
               </div>
-              <p className="text-sm text-muted-foreground mt-2">
+              <p className="text-sm text-muted-foreground">
                 Due today - manage bookings
               </p>
             </CardContent>

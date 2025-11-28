@@ -95,7 +95,7 @@ export default function Settings() {
               Company Information
             </CardTitle>
             <CardDescription>
-              Update your business details. This information will be used in invoices and receipts.
+              Update your business details for invoices and receipts.
             </CardDescription>
           </CardHeader>
           <CardContent className="pt-6 space-y-4">

@@ -253,9 +253,10 @@ const Bookings = () => {
                         setFormData({ ...formData, booking_date: date ? format(date, "yyyy-MM-dd") : "" });
                       }}
                       disabled={(date) => {
-                        const today = new Date();
-                        today.setHours(0, 0, 0, 0);
-                        return date < today;
+                        const yesterday = new Date();
+                        yesterday.setDate(yesterday.getDate() - 1);
+                        yesterday.setHours(0, 0, 0, 0);
+                        return date < yesterday;
                       }}
                       className="rounded-md border"
                     />

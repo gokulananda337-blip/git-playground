@@ -229,10 +229,29 @@ const Expenses = () => {
           </CardContent>
         </Card>
 
-        <Card className="shadow-md border-border/50">
+        <Card>
           <CardHeader className="border-b bg-muted/30">
-            <div className="flex flex-col md:flex-row gap-4">
-              <div className="flex items-center gap-2 flex-1">
+            <div className="flex items-center gap-4">
+              <CalendarIcon className="h-4 w-4 text-muted-foreground" />
+              <Popover>
+                <PopoverTrigger asChild>
+                  <Button variant="outline" className="gap-2">
+                    <CalendarIcon className="h-4 w-4" />
+                    {format(formData.expense_date, "PPP")}
+                  </Button>
+                </PopoverTrigger>
+                <PopoverContent className="w-auto p-0" align="start">
+                  <Calendar
+                    mode="single"
+                    selected={formData.expense_date}
+                    onSelect={(date) => date && setFormData({ ...formData, expense_date: date })}
+                    initialFocus
+                    className="pointer-events-auto"
+                  />
+                </PopoverContent>
+              </Popover>
+              <div className="flex-1"></div>
+              <div className="flex items-center gap-2">
                 <Search className="h-4 w-4 text-muted-foreground" />
                 <Input
                   placeholder="Search expenses..."
