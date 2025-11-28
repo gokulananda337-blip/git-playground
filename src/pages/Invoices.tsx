@@ -7,9 +7,9 @@ import { Input } from "@/components/ui/input";
 import { useToast } from "@/hooks/use-toast";
 import { supabase } from "@/integrations/supabase/client";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
-import { Search, FileText, Download, Send, DollarSign, Building2 } from "lucide-react";
+import { Search, FileText, Download, Send, DollarSign, Building2, Edit2, Plus, Trash2 } from "lucide-react";
 import { format } from "date-fns";
-import { Dialog, DialogContent, DialogHeader, DialogTitle } from "@/components/ui/dialog";
+import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter } from "@/components/ui/dialog";
 import { Label } from "@/components/ui/label";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import jsPDF from "jspdf";
@@ -17,8 +17,10 @@ import jsPDF from "jspdf";
 const Invoices = () => {
   const [search, setSearch] = useState("");
   const [paymentDialogOpen, setPaymentDialogOpen] = useState(false);
+  const [editDialogOpen, setEditDialogOpen] = useState(false);
   const [selectedInvoice, setSelectedInvoice] = useState<any>(null);
   const [paymentMethod, setPaymentMethod] = useState<string>("cash");
+  const [editItems, setEditItems] = useState<any[]>([]);
   const { toast } = useToast();
 
   const { data: companyInfo } = useQuery({
@@ -29,7 +31,7 @@ const Invoices = () => {
 
       const { data, error } = await supabase
         .from("branches")
-        .select("name, email, phone, address")
+        .select("name, email, phone, address, gst_number, company_logo_url")
         .eq("user_id", user.id)
         .limit(1)
         .maybeSingle();
@@ -87,6 +89,50 @@ const Invoices = () => {
     }
   });
 
+  const updateInvoice = useMutation({
+    mutationFn: async ({ invoiceId, items }: { invoiceId: string; items: any[] }) => {
+      const subtotal = items.reduce((sum, item) => sum + Number(item.price), 0);
+      const { error } = await supabase
+        .from("invoices")
+        .update({
+          items,
+          subtotal,
+          total_amount: subtotal + (selectedInvoice.tax_amount || 0) - (selectedInvoice.discount || 0)
+        })
+        .eq("id", invoiceId);
+      
+      if (error) throw error;
+    },
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ["invoices"] });
+      toast({ title: "Invoice updated successfully" });
+      setEditDialogOpen(false);
+    },
+    onError: (error: any) => {
+      toast({ title: "Error", description: error.message, variant: "destructive" });
+    }
+  });
+
+  const openEditDialog = (invoice: any) => {
+    setSelectedInvoice(invoice);
+    setEditItems(Array.isArray(invoice.items) ? [...invoice.items] : []);
+    setEditDialogOpen(true);
+  };
+
+  const addEditItem = () => {
+    setEditItems([...editItems, { name: "", price: 0 }]);
+  };
+
+  const removeEditItem = (index: number) => {
+    setEditItems(editItems.filter((_, i) => i !== index));
+  };
+
+  const updateEditItem = (index: number, field: string, value: any) => {
+    const updated = [...editItems];
+    updated[index] = { ...updated[index], [field]: value };
+    setEditItems(updated);
+  };
+
   const downloadPDF = (invoice: any) => {
     if (!companyInfo) {
       toast({
@@ -101,12 +147,12 @@ const Invoices = () => {
     const pageWidth = doc.internal.pageSize.width;
     let y = 20;
 
-    // Header with company info
-    doc.setFillColor(59, 130, 246);
-    doc.rect(0, 0, pageWidth, 50, 'F');
+    // Header with company info - Yellow gradient
+    doc.setFillColor(253, 224, 71); // yellow-300
+    doc.rect(0, 0, pageWidth, 60, 'F');
     
-    doc.setTextColor(255, 255, 255);
-    doc.setFontSize(20);
+    doc.setTextColor(0, 0, 0);
+    doc.setFontSize(22);
     doc.setFont(undefined, 'bold');
     doc.text(companyInfo.name || "Car Wash", 20, 20);
     
@@ -115,20 +161,25 @@ const Invoices = () => {
     if (companyInfo.address) doc.text(companyInfo.address, 20, 28);
     if (companyInfo.phone) doc.text(`Phone: ${companyInfo.phone}`, 20, 34);
     if (companyInfo.email) doc.text(`Email: ${companyInfo.email}`, 20, 40);
+    if (companyInfo.gst_number) {
+      doc.setFont(undefined, 'bold');
+      doc.text(`GST: ${companyInfo.gst_number}`, 20, 46);
+      doc.setFont(undefined, 'normal');
+    }
 
     // Invoice details (right side)
-    doc.setFontSize(24);
+    doc.setFontSize(26);
     doc.setFont(undefined, 'bold');
-    doc.text("INVOICE", pageWidth - 20, 20, { align: "right" });
+    doc.text("INVOICE", pageWidth - 20, 22, { align: "right" });
     
-    doc.setFontSize(9);
+    doc.setFontSize(10);
     doc.setFont(undefined, 'normal');
-    doc.text(`#${invoice.invoice_number}`, pageWidth - 20, 28, { align: "right" });
-    doc.text(format(new Date(invoice.created_at), "MMM dd, yyyy"), pageWidth - 20, 34, { align: "right" });
+    doc.text(`#${invoice.invoice_number}`, pageWidth - 20, 32, { align: "right" });
+    doc.text(format(new Date(invoice.created_at), "MMM dd, yyyy"), pageWidth - 20, 40, { align: "right" });
 
     // Reset text color
     doc.setTextColor(0, 0, 0);
-    y = 60;
+    y = 70;
 
     // Bill To section
     doc.setFontSize(10);
@@ -206,7 +257,7 @@ const Invoices = () => {
     }
 
     y += 8;
-    doc.setDrawColor(59, 130, 246);
+    doc.setDrawColor(253, 224, 71);
     doc.setLineWidth(0.5);
     doc.line(totalsX - 5, y, pageWidth - 20, y);
 
@@ -262,12 +313,13 @@ const Invoices = () => {
             <p className="text-muted-foreground">Manage billing and payments</p>
           </div>
           {companyInfo && (
-            <Card className="p-3 bg-gradient-to-br from-primary/5 to-primary/10 border-primary/20">
+            <Card className="p-4 bg-gradient-to-br from-primary/5 to-primary/10 border-primary/20">
               <div className="flex items-start gap-3">
                 <Building2 className="h-5 w-5 text-primary mt-1" />
-                <div className="text-sm">
-                  <p className="font-semibold">{companyInfo.name}</p>
+                <div className="text-sm space-y-1">
+                  <p className="font-semibold text-base">{companyInfo.name}</p>
                   {companyInfo.phone && <p className="text-xs text-muted-foreground">{companyInfo.phone}</p>}
+                  {companyInfo.gst_number && <p className="text-xs text-muted-foreground font-mono">GST: {companyInfo.gst_number}</p>}
                 </div>
               </div>
             </Card>
@@ -356,6 +408,10 @@ const Invoices = () => {
                         </div>
                         
                         <div className="flex flex-col gap-2">
+                          <Button size="sm" variant="outline" className="gap-2" onClick={() => openEditDialog(invoice)}>
+                            <Edit2 className="h-4 w-4" />
+                            Edit Invoice
+                          </Button>
                           <Button size="sm" variant="outline" className="gap-2" onClick={() => downloadPDF(invoice)}>
                             <Download className="h-4 w-4" />
                             Download PDF
@@ -387,6 +443,7 @@ const Invoices = () => {
           </CardContent>
         </Card>
 
+        {/* Payment Dialog */}
         <Dialog open={paymentDialogOpen} onOpenChange={setPaymentDialogOpen}>
           <DialogContent>
             <DialogHeader>
@@ -419,6 +476,67 @@ const Invoices = () => {
                 {recordPayment.isPending ? "Recording..." : "Confirm Payment"}
               </Button>
             </div>
+          </DialogContent>
+        </Dialog>
+
+        {/* Edit Invoice Dialog */}
+        <Dialog open={editDialogOpen} onOpenChange={setEditDialogOpen}>
+          <DialogContent className="max-w-2xl max-h-[90vh] overflow-y-auto">
+            <DialogHeader>
+              <DialogTitle>Edit Invoice #{selectedInvoice?.invoice_number}</DialogTitle>
+            </DialogHeader>
+            <div className="space-y-4">
+              <div className="space-y-3">
+                {editItems.map((item, index) => (
+                  <div key={index} className="flex gap-2 items-end">
+                    <div className="flex-1">
+                      <Label>Service/Item</Label>
+                      <Input
+                        value={item.name}
+                        onChange={(e) => updateEditItem(index, "name", e.target.value)}
+                        placeholder="Service name"
+                      />
+                    </div>
+                    <div className="w-32">
+                      <Label>Price (₹)</Label>
+                      <Input
+                        type="number"
+                        value={item.price}
+                        onChange={(e) => updateEditItem(index, "price", parseFloat(e.target.value) || 0)}
+                        placeholder="0"
+                      />
+                    </div>
+                    <Button
+                      type="button"
+                      variant="destructive"
+                      size="icon"
+                      onClick={() => removeEditItem(index)}
+                    >
+                      <Trash2 className="h-4 w-4" />
+                    </Button>
+                  </div>
+                ))}
+              </div>
+              <Button type="button" variant="outline" onClick={addEditItem} className="w-full">
+                <Plus className="h-4 w-4 mr-2" />
+                Add Item
+              </Button>
+              <div className="pt-4 border-t">
+                <p className="text-right text-sm text-muted-foreground">Subtotal</p>
+                <p className="text-right text-2xl font-bold text-primary">
+                  ₹{editItems.reduce((sum, item) => sum + Number(item.price), 0).toFixed(2)}
+                </p>
+              </div>
+            </div>
+            <DialogFooter>
+              <Button variant="outline" onClick={() => setEditDialogOpen(false)}>Cancel</Button>
+              <Button 
+                onClick={() => updateInvoice.mutate({ invoiceId: selectedInvoice.id, items: editItems })}
+                disabled={updateInvoice.isPending}
+              >
+                {updateInvoice.isPending ? "Saving..." : "Save Changes"}
+              </Button>
+            </DialogFooter>
           </DialogContent>
         </Dialog>
       </div>

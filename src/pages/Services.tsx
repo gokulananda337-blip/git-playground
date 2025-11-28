@@ -401,27 +401,24 @@ const Services = () => {
               </div>
               
               <div>
-                <Label className="mb-3 block">Lifecycle Stages *</Label>
+                <Label className="mb-3 block">Lifecycle Stages * (Numbered Order)</Label>
                 <div className="space-y-3">
-                  <div className="grid grid-cols-2 gap-2 p-3 border rounded-lg border-border/50 bg-muted/20">
-                    {formData.lifecycle_stages.map((stage) => (
-                      <div key={stage} className="flex items-center justify-between p-2 hover:bg-accent/10 rounded">
-                        <label className="flex items-center gap-2 cursor-pointer flex-1">
-                          <input
-                            type="checkbox"
-                            checked={true}
-                            onChange={() => removeCustomStage(stage)}
-                            className="rounded"
-                          />
-                          <span className="text-sm capitalize">{stage.replace("_", " ")}</span>
-                        </label>
+                  <div className="grid grid-cols-1 gap-2 p-3 border rounded-lg border-border/50 bg-muted/20">
+                    {formData.lifecycle_stages.map((stage, index) => (
+                      <div key={stage} className="flex items-center justify-between p-2 hover:bg-accent/10 rounded border border-border/30">
+                        <div className="flex items-center gap-3 flex-1">
+                          <div className="w-8 h-8 rounded-full bg-primary text-primary-foreground flex items-center justify-center font-bold text-sm">
+                            {index + 1}
+                          </div>
+                          <span className="text-sm capitalize font-medium">{stage.replace(/_/g, " ")}</span>
+                        </div>
                         {!DEFAULT_STAGES.includes(stage) && (
                           <Button
                             type="button"
                             variant="ghost"
                             size="sm"
                             onClick={() => removeCustomStage(stage)}
-                            className="h-6 w-6 p-0 text-destructive hover:text-destructive"
+                            className="h-6 w-6 p-0 text-destructive hover:text-destructive hover:bg-destructive/10"
                           >
                             ×
                           </Button>
@@ -443,7 +440,7 @@ const Services = () => {
                   </div>
                 </div>
                 <p className="text-xs text-muted-foreground mt-2">
-                  Customize lifecycle stages for this service. Add your own or use defaults.
+                  Stages are numbered in order. They'll appear 1→2→3 in job cards workflow.
                 </p>
               </div>
 
