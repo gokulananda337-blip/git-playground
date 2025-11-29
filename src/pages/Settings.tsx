@@ -7,7 +7,7 @@ import { Label } from "@/components/ui/label";
 import { Textarea } from "@/components/ui/textarea";
 import { supabase } from "@/integrations/supabase/client";
 import { useToast } from "@/hooks/use-toast";
-import { Loader2, Building2, Phone, Mail, MapPin, FileText } from "lucide-react";
+import { Loader2, Building2, Phone, Mail, MapPin, FileText, Palette } from "lucide-react";
 
 export default function Settings() {
   const { toast } = useToast();
@@ -20,10 +20,54 @@ export default function Settings() {
     address: "",
     gst_number: "",
   });
+  const [themeColor, setThemeColor] = useState("#facc15"); // default yellow
 
   useEffect(() => {
     fetchBranches();
+    // Load saved theme color
+    const savedColor = localStorage.getItem("theme-color");
+    if (savedColor) {
+      setThemeColor(savedColor);
+      applyThemeColor(savedColor);
+    }
   }, []);
+  
+  const applyThemeColor = (color: string) => {
+    // Convert hex to HSL
+    const hex = color.replace('#', '');
+    const r = parseInt(hex.substr(0, 2), 16) / 255;
+    const g = parseInt(hex.substr(2, 2), 16) / 255;
+    const b = parseInt(hex.substr(4, 2), 16) / 255;
+    
+    const max = Math.max(r, g, b);
+    const min = Math.min(r, g, b);
+    let h = 0, s = 0, l = (max + min) / 2;
+    
+    if (max !== min) {
+      const d = max - min;
+      s = l > 0.5 ? d / (2 - max - min) : d / (max + min);
+      switch (max) {
+        case r: h = ((g - b) / d + (g < b ? 6 : 0)) / 6; break;
+        case g: h = ((b - r) / d + 2) / 6; break;
+        case b: h = ((r - g) / d + 4) / 6; break;
+      }
+    }
+    
+    h = Math.round(h * 360);
+    s = Math.round(s * 100);
+    l = Math.round(l * 100);
+    
+    // Apply to CSS variables
+    document.documentElement.style.setProperty('--primary', `${h} ${s}% ${l}%`);
+    document.documentElement.style.setProperty('--primary-glow', `${h} ${Math.min(s + 10, 100)}% ${Math.min(l + 10, 100)}%`);
+  };
+  
+  const handleThemeColorChange = (color: string) => {
+    setThemeColor(color);
+    applyThemeColor(color);
+    localStorage.setItem("theme-color", color);
+    toast({ title: "Theme color updated" });
+  };
 
   const fetchBranches = async () => {
     const { data: session } = await supabase.auth.getSession();
@@ -203,6 +247,75 @@ export default function Settings() {
                 {loading && <Loader2 className="mr-2 h-4 w-4 animate-spin" />}
                 Save Changes
               </Button>
+            </div>
+          </CardContent>
+        </Card>
+
+        <Card>
+          <CardHeader className="border-b">
+            <CardTitle className="flex items-center gap-2">
+              <Palette className="h-5 w-5" />
+              Theme Customization
+            </CardTitle>
+            <CardDescription>
+              Customize the primary color for your entire application.
+            </CardDescription>
+          </CardHeader>
+          <CardContent className="pt-6 space-y-4">
+            <div className="space-y-2">
+              <Label htmlFor="theme-color">Primary Color</Label>
+              <div className="flex items-center gap-4">
+                <Input
+                  id="theme-color"
+                  type="color"
+                  value={themeColor}
+                  onChange={(e) => handleThemeColorChange(e.target.value)}
+                  className="w-20 h-12 cursor-pointer"
+                />
+                <div className="flex-1 space-y-2">
+                  <p className="text-sm text-muted-foreground">
+                    Selected color: <span className="font-mono font-semibold">{themeColor}</span>
+                  </p>
+                  <div className="flex gap-2">
+                    <Button
+                      size="sm"
+                      variant="outline"
+                      onClick={() => handleThemeColorChange("#facc15")}
+                      className="gap-2"
+                    >
+                      <div className="w-4 h-4 rounded-full bg-[#facc15]" />
+                      Yellow (Default)
+                    </Button>
+                    <Button
+                      size="sm"
+                      variant="outline"
+                      onClick={() => handleThemeColorChange("#3b82f6")}
+                      className="gap-2"
+                    >
+                      <div className="w-4 h-4 rounded-full bg-[#3b82f6]" />
+                      Blue
+                    </Button>
+                    <Button
+                      size="sm"
+                      variant="outline"
+                      onClick={() => handleThemeColorChange("#8b5cf6")}
+                      className="gap-2"
+                    >
+                      <div className="w-4 h-4 rounded-full bg-[#8b5cf6]" />
+                      Purple
+                    </Button>
+                    <Button
+                      size="sm"
+                      variant="outline"
+                      onClick={() => handleThemeColorChange("#10b981")}
+                      className="gap-2"
+                    >
+                      <div className="w-4 h-4 rounded-full bg-[#10b981]" />
+                      Green
+                    </Button>
+                  </div>
+                </div>
+              </div>
             </div>
           </CardContent>
         </Card>
