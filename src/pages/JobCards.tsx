@@ -140,28 +140,15 @@ const JobCards = () => {
   });
 
   const updateStatus = useMutation({
-    mutationFn: async ({ id, status, jobCard }: { id: string; status: string; jobCard?: any }) => {
-      const updates: any = { status };
+    mutationFn: async ({ id, status }: { id: string; status: string }) => {
       const { error } = await supabase
         .from("job_cards")
-        .update(updates)
+        .update({ status: status as any })
         .eq("id", id);
       if (error) throw error;
-
-      if (jobCard?.booking_id) {
-        let bookingStatus = "pending";
-        if (status === "delivered" || status === "completed") bookingStatus = "completed";
-        else bookingStatus = "in_progress";
-
-        await supabase
-          .from("bookings")
-          .update({ status: bookingStatus as any })
-          .eq("id", jobCard.booking_id);
-      }
     },
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ["jobCards"] });
-      queryClient.invalidateQueries({ queryKey: ["bookings"] });
       toast({ title: "Status updated" });
     }
   });
@@ -397,24 +384,26 @@ const JobCards = () => {
                               </div>
                             </div>
                           </div>
-                          <div className="flex gap-2">
-                            <Button
-                              size="sm"
-                              variant="outline"
-                              onClick={() => {
-                                const currentStages = Array.isArray((job.services[0] as any)?.lifecycle_stages) 
-                                  ? (job.services[0] as any).lifecycle_stages 
-                                  : ["check_in", "completed", "delivered"];
-                                const currentIndex = currentStages.indexOf(job.status);
-                                const nextStatus = currentIndex < currentStages.length - 1 
-                                  ? currentStages[currentIndex + 1] 
-                                  : job.status;
-                                updateStatus.mutate({ id: job.id, status: nextStatus, jobCard: job });
-                              }}
+                          <div className="flex gap-2 items-center">
+                            <Select
+                              value={job.status}
+                              onValueChange={(value) => updateStatus.mutate({ id: job.id, status: value })}
                             >
-                              <CheckCircle2 className="h-4 w-4 mr-1" />
-                              Next Stage
-                            </Button>
+                              <SelectTrigger className="w-40">
+                                <SelectValue />
+                              </SelectTrigger>
+                              <SelectContent>
+                                {(() => {
+                                  const firstService = Array.isArray(job.services) && job.services[0];
+                                  const stages = (firstService as any)?.lifecycle_stages || ["check_in", "completed", "delivered"];
+                                  return stages.map((stage: string, index: number) => (
+                                    <SelectItem key={stage} value={stage}>
+                                      {index + 1}. {stage.replace(/_/g, " ").toUpperCase()}
+                                    </SelectItem>
+                                  ));
+                                })()}
+                              </SelectContent>
+                            </Select>
                             <Button
                               size="sm"
                               onClick={() => createInvoice.mutate(job)}
