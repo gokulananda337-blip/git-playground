@@ -13,7 +13,6 @@ export default function Settings() {
   const { toast } = useToast();
   const [loading, setLoading] = useState(false);
   const [branches, setBranches] = useState<any[]>([]);
-  const [selectedBranch, setSelectedBranch] = useState<string>("");
   const [companyForm, setCompanyForm] = useState({
     name: "",
     email: "",
@@ -42,7 +41,6 @@ export default function Settings() {
 
     setBranches(data || []);
     if (data && data.length > 0) {
-      setSelectedBranch(data[0].id);
       const first = data[0];
       setCompanyForm({
         name: first.name || "",
@@ -55,27 +53,55 @@ export default function Settings() {
   };
 
   const handleSaveCompanyInfo = async () => {
-    if (!selectedBranch) return;
-
     setLoading(true);
-    const { error } = await supabase
-      .from("branches")
-      .update({
-        name: companyForm.name,
-        email: companyForm.email,
-        phone: companyForm.phone,
-        address: companyForm.address,
-        gst_number: companyForm.gst_number,
-      })
-      .eq("id", selectedBranch);
+    const { data: session } = await supabase.auth.getSession();
+    if (!session.session) return;
 
-    setLoading(false);
+    // Get or create the first branch
+    let branchId = branches.length > 0 ? branches[0].id : null;
+    
+    if (!branchId) {
+      // Create a new branch if none exists
+      const { data: newBranch, error: createError } = await supabase
+        .from("branches")
+        .insert({
+          user_id: session.session.user.id,
+          name: companyForm.name,
+          email: companyForm.email,
+          phone: companyForm.phone,
+          address: companyForm.address,
+          gst_number: companyForm.gst_number,
+        })
+        .select()
+        .single();
 
-    if (error) {
-      toast({ title: "Error saving company info", variant: "destructive" });
-      return;
+      if (createError) {
+        setLoading(false);
+        toast({ title: "Error creating company info", variant: "destructive" });
+        return;
+      }
+      branchId = newBranch.id;
+    } else {
+      // Update existing branch
+      const { error } = await supabase
+        .from("branches")
+        .update({
+          name: companyForm.name,
+          email: companyForm.email,
+          phone: companyForm.phone,
+          address: companyForm.address,
+          gst_number: companyForm.gst_number,
+        })
+        .eq("id", branchId);
+
+      if (error) {
+        setLoading(false);
+        toast({ title: "Error saving company info", variant: "destructive" });
+        return;
+      }
     }
 
+    setLoading(false);
     toast({ title: "Company information updated successfully" });
     fetchBranches();
   };
@@ -181,42 +207,6 @@ export default function Settings() {
           </CardContent>
         </Card>
 
-        <Card>
-          <CardHeader className="border-b">
-            <CardTitle>Branch Selection</CardTitle>
-            <CardDescription>
-              Select which branch to manage settings for
-            </CardDescription>
-          </CardHeader>
-          <CardContent className="pt-6">
-            <div className="space-y-2">
-              <Label>Active Branch</Label>
-              <select
-                value={selectedBranch}
-                onChange={(e) => {
-                  setSelectedBranch(e.target.value);
-                  const branch = branches.find((b) => b.id === e.target.value);
-                  if (branch) {
-                    setCompanyForm({
-                      name: branch.name || "",
-                      email: branch.email || "",
-                      phone: branch.phone || "",
-                      address: branch.address || "",
-                      gst_number: branch.gst_number || "",
-                    });
-                  }
-                }}
-                className="w-full rounded-md border border-input bg-background px-3 py-2"
-              >
-                {branches.map((branch) => (
-                  <option key={branch.id} value={branch.id}>
-                    {branch.name}
-                  </option>
-                ))}
-              </select>
-            </div>
-          </CardContent>
-        </Card>
       </div>
     </DashboardLayout>
   );

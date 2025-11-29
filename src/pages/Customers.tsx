@@ -77,19 +77,24 @@ const Customers = () => {
       const { data: { user } } = await supabase.auth.getUser();
       if (!user) throw new Error("Not authenticated");
 
-      const { error } = await supabase.from("customers").insert({
-        user_id: user.id,
-        ...formData,
-      });
-
-      if (error) throw error;
-
-      toast({
-        title: "Success",
-        description: "Customer added successfully",
-      });
+      if (selectedCustomer) {
+        const { error } = await supabase
+          .from("customers")
+          .update(formData)
+          .eq("id", selectedCustomer.id);
+        if (error) throw error;
+        toast({ title: "Customer updated successfully" });
+      } else {
+        const { error } = await supabase.from("customers").insert({
+          user_id: user.id,
+          ...formData,
+        });
+        if (error) throw error;
+        toast({ title: "Customer added successfully" });
+      }
 
       setOpen(false);
+      setSelectedCustomer(null);
       setFormData({
         name: "",
         phone: "",
@@ -121,7 +126,19 @@ const Customers = () => {
             <h1 className="text-3xl font-bold">Customers</h1>
             <p className="text-muted-foreground">Manage your customer database</p>
           </div>
-          <Dialog open={open} onOpenChange={setOpen}>
+          <Dialog open={open} onOpenChange={(isOpen) => {
+            setOpen(isOpen);
+            if (!isOpen) {
+              setSelectedCustomer(null);
+              setFormData({
+                name: "",
+                phone: "",
+                email: "",
+                whatsapp_number: "",
+                address: "",
+              });
+            }
+          }}>
             <DialogTrigger asChild>
               <Button className="bg-primary hover:bg-primary/90">
                 <Plus className="mr-2 h-4 w-4" />
@@ -130,7 +147,7 @@ const Customers = () => {
             </DialogTrigger>
             <DialogContent>
               <DialogHeader>
-                <DialogTitle>Add New Customer</DialogTitle>
+                <DialogTitle>{selectedCustomer ? "Edit Customer" : "Add New Customer"}</DialogTitle>
               </DialogHeader>
               <form onSubmit={handleSubmit} className="space-y-4">
                 <div className="space-y-2">
@@ -179,7 +196,7 @@ const Customers = () => {
                   />
                 </div>
                 <Button type="submit" className="w-full">
-                  Add Customer
+                  {selectedCustomer ? "Update Customer" : "Add Customer"}
                 </Button>
               </form>
             </DialogContent>
@@ -277,48 +294,90 @@ const Customers = () => {
                 <DialogTitle>Customer Details</DialogTitle>
               </DialogHeader>
               {selectedCustomer && (
-                <div className="space-y-3">
-                  <div>
-                    <p className="text-xs text-muted-foreground">Name</p>
-                    <p className="font-medium">{selectedCustomer.name}</p>
-                  </div>
-                  <div>
-                    <p className="text-xs text-muted-foreground">Phone</p>
-                    <p className="font-medium">{selectedCustomer.phone}</p>
-                  </div>
-                  {selectedCustomer.email && (
+                <div className="space-y-4">
+                  <div className="space-y-3">
                     <div>
-                      <p className="text-xs text-muted-foreground">Email</p>
-                      <p className="font-medium">{selectedCustomer.email}</p>
+                      <p className="text-xs text-muted-foreground">Name</p>
+                      <p className="font-medium">{selectedCustomer.name}</p>
                     </div>
-                  )}
-                  {selectedCustomer.whatsapp_number && (
                     <div>
-                      <p className="text-xs text-muted-foreground">WhatsApp</p>
-                      <p className="font-medium">{selectedCustomer.whatsapp_number}</p>
+                      <p className="text-xs text-muted-foreground">Phone</p>
+                      <p className="font-medium">{selectedCustomer.phone}</p>
                     </div>
-                  )}
-                  {selectedCustomer.address && (
-                    <div>
-                      <p className="text-xs text-muted-foreground">Address</p>
-                      <p className="font-medium">{selectedCustomer.address}</p>
-                    </div>
-                  )}
-                  {selectedCustomer.tags && selectedCustomer.tags.length > 0 && (
-                    <div>
-                      <p className="text-xs text-muted-foreground">Tags</p>
-                      <div className="flex flex-wrap gap-1 pt-1">
-                        {selectedCustomer.tags.map((tag, index) => (
-                          <span
-                            key={index}
-                            className="px-2 py-1 text-xs bg-secondary text-secondary-foreground rounded-full"
-                          >
-                            {tag}
-                          </span>
-                        ))}
+                    {selectedCustomer.email && (
+                      <div>
+                        <p className="text-xs text-muted-foreground">Email</p>
+                        <p className="font-medium">{selectedCustomer.email}</p>
                       </div>
-                    </div>
-                  )}
+                    )}
+                    {selectedCustomer.whatsapp_number && (
+                      <div>
+                        <p className="text-xs text-muted-foreground">WhatsApp</p>
+                        <p className="font-medium">{selectedCustomer.whatsapp_number}</p>
+                      </div>
+                    )}
+                    {selectedCustomer.address && (
+                      <div>
+                        <p className="text-xs text-muted-foreground">Address</p>
+                        <p className="font-medium">{selectedCustomer.address}</p>
+                      </div>
+                    )}
+                    {selectedCustomer.tags && selectedCustomer.tags.length > 0 && (
+                      <div>
+                        <p className="text-xs text-muted-foreground">Tags</p>
+                        <div className="flex flex-wrap gap-1 pt-1">
+                          {selectedCustomer.tags.map((tag, index) => (
+                            <span
+                              key={index}
+                              className="px-2 py-1 text-xs bg-secondary text-secondary-foreground rounded-full"
+                            >
+                              {tag}
+                            </span>
+                          ))}
+                        </div>
+                      </div>
+                    )}
+                  </div>
+                  <div className="flex gap-2 pt-2 border-t">
+                    <Button
+                      variant="outline"
+                      className="flex-1"
+                      onClick={() => {
+                        setFormData({
+                          name: selectedCustomer.name,
+                          phone: selectedCustomer.phone,
+                          email: selectedCustomer.email || "",
+                          whatsapp_number: selectedCustomer.whatsapp_number || "",
+                          address: selectedCustomer.address || "",
+                        });
+                        setDetailOpen(false);
+                        setOpen(true);
+                      }}
+                    >
+                      Edit
+                    </Button>
+                    <Button
+                      variant="destructive"
+                      className="flex-1"
+                      onClick={async () => {
+                        if (confirm("Delete this customer? This cannot be undone.")) {
+                          const { error } = await supabase
+                            .from("customers")
+                            .delete()
+                            .eq("id", selectedCustomer.id);
+                          if (error) {
+                            toast({ title: "Error deleting customer", variant: "destructive" });
+                          } else {
+                            toast({ title: "Customer deleted" });
+                            setDetailOpen(false);
+                            fetchCustomers();
+                          }
+                        }
+                      }}
+                    >
+                      Delete
+                    </Button>
+                  </div>
                 </div>
               )}
             </DialogContent>

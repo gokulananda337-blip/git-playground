@@ -18,6 +18,8 @@ export default function Subscriptions() {
   const [services, setServices] = useState<any[]>([]);
   const [searchQuery, setSearchQuery] = useState("");
   const [isAddOpen, setIsAddOpen] = useState(false);
+  const [detailOpen, setDetailOpen] = useState(false);
+  const [selectedSub, setSelectedSub] = useState<any>(null);
 
   useEffect(() => {
     fetchData();
@@ -196,7 +198,14 @@ export default function Subscriptions() {
                 const isExpiringSoon = new Date(sub.end_date) < new Date(Date.now() + 7 * 24 * 60 * 60 * 1000);
                 
                 return (
-                  <Card key={sub.id} className="hover:shadow-md transition-all border-border/50 hover:border-primary/30">
+                  <Card 
+                    key={sub.id} 
+                    className="hover:shadow-md transition-all border-border/50 hover:border-primary/30 cursor-pointer"
+                    onClick={() => {
+                      setSelectedSub(sub);
+                      setDetailOpen(true);
+                    }}
+                  >
                     <CardHeader>
                       <div className="flex justify-between items-start">
                         <div className="flex items-center gap-2">
@@ -247,6 +256,98 @@ export default function Subscriptions() {
             </div>
           </CardContent>
         </Card>
+
+        <Dialog open={detailOpen} onOpenChange={setDetailOpen}>
+          <DialogContent className="max-w-md">
+            <DialogHeader>
+              <DialogTitle>Subscription Details</DialogTitle>
+            </DialogHeader>
+            {selectedSub && (
+              <div className="space-y-4">
+                <div className="space-y-3">
+                  <div>
+                    <p className="text-xs text-muted-foreground">Customer</p>
+                    <p className="font-medium">{selectedSub.customers?.name}</p>
+                  </div>
+                  <div>
+                    <p className="text-xs text-muted-foreground">Plan</p>
+                    <p className="font-medium">{selectedSub.plan_name}</p>
+                  </div>
+                  <div className="grid grid-cols-2 gap-3">
+                    <div>
+                      <p className="text-xs text-muted-foreground">Amount</p>
+                      <p className="font-medium">₹{selectedSub.amount}</p>
+                    </div>
+                    <div>
+                      <p className="text-xs text-muted-foreground">Total Washes</p>
+                      <p className="font-medium">{selectedSub.total_washes}</p>
+                    </div>
+                  </div>
+                  <div>
+                    <p className="text-xs text-muted-foreground mb-2">Used Washes</p>
+                    <Input
+                      type="number"
+                      value={selectedSub.used_washes || 0}
+                      onChange={async (e) => {
+                        const newValue = parseInt(e.target.value) || 0;
+                        const { error } = await supabase
+                          .from("subscriptions")
+                          .update({ used_washes: newValue })
+                          .eq("id", selectedSub.id);
+                        if (error) {
+                          toast({ title: "Error updating", variant: "destructive" });
+                        } else {
+                          toast({ title: "Updated successfully" });
+                          setSelectedSub({ ...selectedSub, used_washes: newValue });
+                          fetchData();
+                        }
+                      }}
+                      max={selectedSub.total_washes}
+                    />
+                  </div>
+                  <div>
+                    <p className="text-xs text-muted-foreground mb-2">Status</p>
+                    <Select
+                      value={selectedSub.is_active ? "active" : "inactive"}
+                      onValueChange={async (value) => {
+                        const isActive = value === "active";
+                        const { error } = await supabase
+                          .from("subscriptions")
+                          .update({ is_active: isActive })
+                          .eq("id", selectedSub.id);
+                        if (error) {
+                          toast({ title: "Error updating status", variant: "destructive" });
+                        } else {
+                          toast({ title: "Status updated" });
+                          setSelectedSub({ ...selectedSub, is_active: isActive });
+                          fetchData();
+                        }
+                      }}
+                    >
+                      <SelectTrigger>
+                        <SelectValue />
+                      </SelectTrigger>
+                      <SelectContent>
+                        <SelectItem value="active">Active</SelectItem>
+                        <SelectItem value="inactive">Inactive</SelectItem>
+                      </SelectContent>
+                    </Select>
+                  </div>
+                  <div className="grid grid-cols-2 gap-3">
+                    <div>
+                      <p className="text-xs text-muted-foreground">Start Date</p>
+                      <p className="font-medium">{new Date(selectedSub.start_date).toLocaleDateString()}</p>
+                    </div>
+                    <div>
+                      <p className="text-xs text-muted-foreground">End Date</p>
+                      <p className="font-medium">{new Date(selectedSub.end_date).toLocaleDateString()}</p>
+                    </div>
+                  </div>
+                </div>
+              </div>
+            )}
+          </DialogContent>
+        </Dialog>
       </div>
     </DashboardLayout>
   );

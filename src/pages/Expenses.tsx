@@ -49,6 +49,7 @@ const Expenses = () => {
   const [filteredExpenses, setFilteredExpenses] = useState<Expense[]>([]);
   const [searchQuery, setSearchQuery] = useState("");
   const [categoryFilter, setCategoryFilter] = useState<string>("all");
+  const [selectedDate, setSelectedDate] = useState<Date>(new Date());
   const [loading, setLoading] = useState(true);
   const [dialogOpen, setDialogOpen] = useState(false);
   const [detailDialogOpen, setDetailDialogOpen] = useState(false);
@@ -65,7 +66,7 @@ const Expenses = () => {
 
   useEffect(() => {
     fetchExpenses();
-  }, []);
+  }, [selectedDate]);
 
   useEffect(() => {
     let filtered = expenses;
@@ -87,10 +88,16 @@ const Expenses = () => {
 
   const fetchExpenses = async () => {
     try {
+      const { data: userData } = await supabase.auth.getUser();
+      if (!userData.user) return;
+
+      const dateStr = format(selectedDate, "yyyy-MM-dd");
       const { data, error } = await supabase
         .from("expenses")
         .select("*")
-        .order("expense_date", { ascending: false });
+        .eq("user_id", userData.user.id)
+        .eq("expense_date", dateStr)
+        .order("created_at", { ascending: false });
 
       if (error) throw error;
       setExpenses(data || []);
@@ -237,14 +244,14 @@ const Expenses = () => {
                 <PopoverTrigger asChild>
                   <Button variant="outline" className="gap-2">
                     <CalendarIcon className="h-4 w-4" />
-                    {format(formData.expense_date, "PPP")}
+                    {format(selectedDate, "PPP")}
                   </Button>
                 </PopoverTrigger>
                 <PopoverContent className="w-auto p-0" align="start">
                   <Calendar
                     mode="single"
-                    selected={formData.expense_date}
-                    onSelect={(date) => date && setFormData({ ...formData, expense_date: date })}
+                    selected={selectedDate}
+                    onSelect={(date) => date && setSelectedDate(date)}
                     initialFocus
                     className="pointer-events-auto"
                   />
