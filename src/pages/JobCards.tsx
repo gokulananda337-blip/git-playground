@@ -16,6 +16,7 @@ import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { Plus, CheckCircle2, Clock, User, Car, Calendar as CalendarIcon, Filter } from "lucide-react";
 import { format } from "date-fns";
 import { cn } from "@/lib/utils";
+import { useRealtimeNotifications } from "@/hooks/use-realtime-notifications";
 
 const JobCards = () => {
   const [isAddOpen, setIsAddOpen] = useState(false);
@@ -24,6 +25,9 @@ const JobCards = () => {
   const { toast } = useToast();
   const queryClient = useQueryClient();
   const navigate = useNavigate();
+  
+  // Enable real-time notifications
+  useRealtimeNotifications();
 
   const [formData, setFormData] = useState({
     customer_id: "",
@@ -195,6 +199,11 @@ const JobCards = () => {
     }
   });
 
+  const getLifecycleStages = (job: any) => {
+    const firstService = Array.isArray(job.services) && job.services[0];
+    return (firstService as any)?.lifecycle_stages || ["check_in", "completed", "delivered"];
+  };
+
   return (
     <DashboardLayout>
       <div className="p-6 space-y-6">
@@ -261,7 +270,12 @@ const JobCards = () => {
                             if (e.target.checked) {
                               setFormData({
                                 ...formData,
-                                services: [...formData.services, { id: service.id, name: service.name, price: service.base_price }]
+                                services: [...formData.services, { 
+                                  id: service.id, 
+                                  name: service.name, 
+                                  price: service.base_price,
+                                  lifecycle_stages: service.lifecycle_stages 
+                                }]
                               });
                             } else {
                               setFormData({
@@ -349,74 +363,129 @@ const JobCards = () => {
             ) : jobCards?.length === 0 ? (
               <div className="text-center py-8 text-muted-foreground">No job cards for this date</div>
             ) : (
-              <div className="space-y-4">
-                {jobCards?.map((job) => (
-                  <Card key={job.id} className="hover:shadow-md transition-shadow">
-                    <CardContent className="p-4">
-                      <div className="space-y-4">
-                        <div className="flex items-start justify-between">
-                          <div className="space-y-2 flex-1">
+              <div className="space-y-6">
+                {jobCards?.map((job) => {
+                  const stages = getLifecycleStages(job);
+                  const currentStageIndex = stages.indexOf(job.status);
+                  
+                  return (
+                    <Card key={job.id} className="hover:shadow-lg transition-shadow">
+                      <CardContent className="p-6">
+                        <div className="flex gap-6">
+                          {/* Left side - Customer & Vehicle info */}
+                          <div className="flex-1 space-y-4">
                             <div className="flex items-center gap-3">
-                              <Badge className="bg-primary text-primary-foreground">
-                                {job.status}
+                              <Badge className="bg-primary text-primary-foreground text-base px-4 py-1">
+                                {job.status.replace(/_/g, ' ').toUpperCase()}
                               </Badge>
                               <div className="flex items-center gap-2 text-sm text-muted-foreground">
                                 <Clock className="h-4 w-4" />
-                                {job.check_in_time ? new Date(job.check_in_time).toLocaleString() : "N/A"}
+                                {job.check_in_time ? format(new Date(job.check_in_time), "hh:mm a") : "N/A"}
                               </div>
                             </div>
+                            
                             <div className="grid grid-cols-2 gap-4">
-                              <div className="flex items-center gap-2">
-                                <User className="h-4 w-4 text-muted-foreground" />
+                              <div className="flex items-center gap-3">
+                                <User className="h-5 w-5 text-muted-foreground" />
                                 <div>
-                                  <p className="font-medium">{job.customers?.name}</p>
-                                  <p className="text-xs text-muted-foreground">{job.customers?.phone}</p>
+                                  <p className="font-semibold text-base">{job.customers?.name}</p>
+                                  <p className="text-sm text-muted-foreground">{job.customers?.phone}</p>
                                 </div>
                               </div>
-                              <div className="flex items-center gap-2">
-                                <Car className="h-4 w-4 text-muted-foreground" />
+                              <div className="flex items-center gap-3">
+                                <Car className="h-5 w-5 text-muted-foreground" />
                                 <div>
-                                  <p className="font-medium">{job.vehicles?.vehicle_number}</p>
-                                  <p className="text-xs text-muted-foreground">
+                                  <p className="font-semibold text-base">{job.vehicles?.vehicle_number}</p>
+                                  <p className="text-sm text-muted-foreground">
                                     {job.vehicles?.brand} {job.vehicles?.model}
                                   </p>
                                 </div>
                               </div>
                             </div>
+
+                            {/* Timeline with checkpoints */}
+                            <div className="relative pl-8 pt-4">
+                              {stages.map((stage, index) => {
+                                const isCompleted = index <= currentStageIndex;
+                                const isCurrent = index === currentStageIndex;
+                                
+                                return (
+                                  <div key={stage} className="relative pb-8 last:pb-0">
+                                    {/* Vertical line */}
+                                    {index < stages.length - 1 && (
+                                      <div 
+                                        className={cn(
+                                          "absolute left-[-20px] top-6 w-0.5 h-full",
+                                          isCompleted ? "bg-primary" : "bg-border"
+                                        )}
+                                      />
+                                    )}
+                                    
+                                    {/* Checkpoint */}
+                                    <div className="absolute left-[-26px] top-0">
+                                      {isCompleted ? (
+                                        <div className={cn(
+                                          "w-4 h-4 rounded-full flex items-center justify-center",
+                                          isCurrent ? "bg-primary ring-4 ring-primary/20" : "bg-primary"
+                                        )}>
+                                          {!isCurrent && (
+                                            <CheckCircle2 className="w-3 h-3 text-primary-foreground" />
+                                          )}
+                                        </div>
+                                      ) : (
+                                        <div className="w-4 h-4 rounded-full border-2 border-border bg-background" />
+                                      )}
+                                    </div>
+                                    
+                                    {/* Stage label */}
+                                    <div>
+                                      <p className={cn(
+                                        "font-medium",
+                                        isCompleted ? "text-foreground" : "text-muted-foreground"
+                                      )}>
+                                        {index + 1}. {stage.replace(/_/g, ' ').toUpperCase()}
+                                      </p>
+                                      {isCurrent && (
+                                        <p className="text-xs text-primary mt-1">In Progress</p>
+                                      )}
+                                    </div>
+                                  </div>
+                                );
+                              })}
+                            </div>
                           </div>
-                          <div className="flex gap-2 items-center">
+
+                          {/* Right side - Actions */}
+                          <div className="flex flex-col gap-2 items-end justify-start">
                             <Select
                               value={job.status}
                               onValueChange={(value) => updateStatus.mutate({ id: job.id, status: value })}
                             >
-                              <SelectTrigger className="w-40">
+                              <SelectTrigger className="w-48">
                                 <SelectValue />
                               </SelectTrigger>
                               <SelectContent>
-                                {(() => {
-                                  const firstService = Array.isArray(job.services) && job.services[0];
-                                  const stages = (firstService as any)?.lifecycle_stages || ["check_in", "completed", "delivered"];
-                                  return stages.map((stage: string, index: number) => (
-                                    <SelectItem key={stage} value={stage}>
-                                      {index + 1}. {stage.replace(/_/g, " ").toUpperCase()}
-                                    </SelectItem>
-                                  ));
-                                })()}
+                                {stages.map((stage: string, index: number) => (
+                                  <SelectItem key={stage} value={stage}>
+                                    {index + 1}. {stage.replace(/_/g, " ").toUpperCase()}
+                                  </SelectItem>
+                                ))}
                               </SelectContent>
                             </Select>
                             <Button
                               size="sm"
                               onClick={() => createInvoice.mutate(job)}
-                              disabled={job.status !== "delivered" && job.status !== "completed"}
+                              disabled={currentStageIndex < stages.length - 1}
+                              className="w-48"
                             >
                               Create Invoice
                             </Button>
                           </div>
                         </div>
-                      </div>
-                    </CardContent>
-                  </Card>
-                ))}
+                      </CardContent>
+                    </Card>
+                  );
+                })}
               </div>
             )}
           </CardContent>

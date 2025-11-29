@@ -13,6 +13,7 @@ import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter } from "
 import { Label } from "@/components/ui/label";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import jsPDF from "jspdf";
+import { useRealtimeNotifications } from "@/hooks/use-realtime-notifications";
 
 const Invoices = () => {
   const [search, setSearch] = useState("");
@@ -22,6 +23,9 @@ const Invoices = () => {
   const [paymentMethod, setPaymentMethod] = useState<string>("cash");
   const [editItems, setEditItems] = useState<any[]>([]);
   const { toast } = useToast();
+  
+  // Enable real-time notifications
+  useRealtimeNotifications();
 
   const { data: companyInfo } = useQuery({
     queryKey: ["company-info"],
@@ -147,140 +151,156 @@ const Invoices = () => {
     const pageWidth = doc.internal.pageSize.width;
     let y = 20;
 
-    // Header with company info - Yellow gradient
-    doc.setFillColor(253, 224, 71); // yellow-300
-    doc.rect(0, 0, pageWidth, 60, 'F');
+    // Header with yellow background
+    doc.setFillColor(254, 240, 138); // yellow
+    doc.rect(0, 0, pageWidth, 50, 'F');
     
+    // Company name
     doc.setTextColor(0, 0, 0);
-    doc.setFontSize(22);
-    doc.setFont(undefined, 'bold');
-    doc.text(companyInfo.name || "Car Wash", 20, 20);
+    doc.setFontSize(24);
+    doc.setFont("helvetica", 'bold');
+    doc.text(companyInfo.name || "Car Wash", 15, 20);
     
+    // Company details
     doc.setFontSize(9);
-    doc.setFont(undefined, 'normal');
-    if (companyInfo.address) doc.text(companyInfo.address, 20, 28);
-    if (companyInfo.phone) doc.text(`Phone: ${companyInfo.phone}`, 20, 34);
-    if (companyInfo.email) doc.text(`Email: ${companyInfo.email}`, 20, 40);
+    doc.setFont("helvetica", 'normal');
+    if (companyInfo.address) doc.text(companyInfo.address, 15, 28);
+    if (companyInfo.phone) doc.text(`Phone: ${companyInfo.phone}`, 15, 33);
+    if (companyInfo.email) doc.text(`Email: ${companyInfo.email}`, 15, 38);
     if (companyInfo.gst_number) {
-      doc.setFont(undefined, 'bold');
-      doc.text(`GST: ${companyInfo.gst_number}`, 20, 46);
-      doc.setFont(undefined, 'normal');
+      doc.setFont("helvetica", 'bold');
+      doc.text(`GST: ${companyInfo.gst_number}`, 15, 43);
     }
 
-    // Invoice details (right side)
-    doc.setFontSize(26);
-    doc.setFont(undefined, 'bold');
-    doc.text("INVOICE", pageWidth - 20, 22, { align: "right" });
+    // INVOICE header (right side)
+    doc.setFontSize(28);
+    doc.setFont("helvetica", 'bold');
+    doc.text("INVOICE", pageWidth - 15, 22, { align: "right" });
     
+    // Invoice details
     doc.setFontSize(10);
-    doc.setFont(undefined, 'normal');
-    doc.text(`#${invoice.invoice_number}`, pageWidth - 20, 32, { align: "right" });
-    doc.text(format(new Date(invoice.created_at), "MMM dd, yyyy"), pageWidth - 20, 40, { align: "right" });
+    doc.setFont("helvetica", 'normal');
+    doc.text(`#INV-${invoice.invoice_number}`, pageWidth - 15, 32, { align: "right" });
+    doc.text(format(new Date(invoice.created_at), "MMM dd, yyyy"), pageWidth - 15, 40, { align: "right" });
 
-    // Reset text color
     doc.setTextColor(0, 0, 0);
-    y = 70;
+    y = 65;
 
-    // Bill To section
-    doc.setFontSize(10);
-    doc.setFont(undefined, 'bold');
-    doc.text("BILL TO:", 20, y);
-    
-    doc.setFont(undefined, 'normal');
-    doc.setFontSize(11);
-    doc.text(invoice.customers?.name || "N/A", 20, y + 6);
+    // Bill To and Vehicle sections with borders
+    doc.setDrawColor(220, 220, 220);
+    doc.setLineWidth(0.5);
+    doc.rect(15, y, 85, 30);
+    doc.rect(105, y, 90, 30);
+
+    // Bill To
     doc.setFontSize(9);
-    if (invoice.customers?.phone) doc.text(invoice.customers.phone, 20, y + 12);
-    if (invoice.customers?.address) doc.text(invoice.customers.address, 20, y + 18);
-
-    // Vehicle info (right side)
-    if (invoice.job_cards?.vehicles) {
-      doc.setFontSize(10);
-      doc.setFont(undefined, 'bold');
-      doc.text("VEHICLE:", pageWidth - 80, y);
-      
-      doc.setFont(undefined, 'normal');
-      doc.setFontSize(11);
-      doc.text(invoice.job_cards.vehicles.vehicle_number, pageWidth - 80, y + 6);
-      doc.setFontSize(9);
-      const vehicleDetails = `${invoice.job_cards.vehicles.brand || ""} ${invoice.job_cards.vehicles.model || ""}`.trim();
-      if (vehicleDetails) doc.text(vehicleDetails, pageWidth - 80, y + 12);
+    doc.setFont("helvetica", 'bold');
+    doc.text("BILL TO:", 20, y + 6);
+    
+    doc.setFont("helvetica", 'normal');
+    doc.setFontSize(10);
+    doc.text(invoice.customers?.name || "N/A", 20, y + 12);
+    doc.setFontSize(8);
+    if (invoice.customers?.phone) doc.text(invoice.customers.phone, 20, y + 17);
+    if (invoice.customers?.address) {
+      const addressLines = doc.splitTextToSize(invoice.customers.address, 60);
+      doc.text(addressLines, 20, y + 22);
     }
 
-    y += 30;
+    // Vehicle Info
+    if (invoice.job_cards?.vehicles) {
+      doc.setFontSize(9);
+      doc.setFont("helvetica", 'bold');
+      doc.text("VEHICLE:", 110, y + 6);
+      
+      doc.setFont("helvetica", 'normal');
+      doc.setFontSize(10);
+      doc.text(invoice.job_cards.vehicles.vehicle_number, 110, y + 12);
+      doc.setFontSize(8);
+      const vehicleDetails = `${invoice.job_cards.vehicles.brand || ""} ${invoice.job_cards.vehicles.model || ""}`.trim();
+      if (vehicleDetails) doc.text(vehicleDetails, 110, y + 17);
+    }
 
-    // Services table header
-    doc.setFillColor(240, 240, 240);
-    doc.rect(20, y, pageWidth - 40, 10, 'F');
+    y += 40;
+
+    // Table header
+    doc.setFillColor(245, 245, 245);
+    doc.rect(15, y, pageWidth - 30, 10, 'F');
+    doc.setDrawColor(220, 220, 220);
+    doc.rect(15, y, pageWidth - 30, 10);
     
     doc.setFontSize(10);
-    doc.setFont(undefined, 'bold');
-    doc.text("DESCRIPTION", 25, y + 7);
-    doc.text("AMOUNT", pageWidth - 25, y + 7, { align: "right" });
+    doc.setFont("helvetica", 'bold');
+    doc.setTextColor(0, 0, 0);
+    doc.text("DESCRIPTION", 20, y + 7);
+    doc.text("AMOUNT", pageWidth - 20, y + 7, { align: "right" });
 
-    y += 12;
-    doc.setDrawColor(220, 220, 220);
-    doc.line(20, y, pageWidth - 20, y);
-
+    y += 10;
+    
     // Services items
-    doc.setFont(undefined, 'normal');
+    doc.setFont("helvetica", 'normal');
     doc.setFontSize(9);
     const items = Array.isArray(invoice.items) ? invoice.items : [];
     items.forEach((item: any) => {
       y += 8;
-      doc.text(item.name || "Service", 25, y);
-      doc.text(`₹${Number(item.price || 0).toFixed(2)}`, pageWidth - 25, y, { align: "right" });
+      doc.text(item.name || "Service", 20, y);
+      const amount = Number(item.price || 0);
+      doc.text(amount.toFixed(2), pageWidth - 20, y, { align: "right" });
     });
 
-    y += 12;
-    doc.line(20, y, pageWidth - 20, y);
+    y += 5;
+    doc.setDrawColor(220, 220, 220);
+    doc.line(15, y, pageWidth - 15, y);
 
     // Totals section
     y += 8;
     const totalsX = pageWidth - 80;
     
+    doc.setFontSize(9);
     doc.text("Subtotal:", totalsX, y);
-    doc.text(`₹${Number(invoice.subtotal).toFixed(2)}`, pageWidth - 25, y, { align: "right" });
+    doc.text(Number(invoice.subtotal).toFixed(2), pageWidth - 20, y, { align: "right" });
 
     if (invoice.discount && Number(invoice.discount) > 0) {
       y += 6;
-      doc.setTextColor(34, 197, 94);
+      doc.setTextColor(0, 150, 0);
       doc.text("Discount:", totalsX, y);
-      doc.text(`-₹${Number(invoice.discount).toFixed(2)}`, pageWidth - 25, y, { align: "right" });
+      doc.text(`-${Number(invoice.discount).toFixed(2)}`, pageWidth - 20, y, { align: "right" });
       doc.setTextColor(0, 0, 0);
     }
 
     if (invoice.tax_amount && Number(invoice.tax_amount) > 0) {
       y += 6;
       doc.text("Tax:", totalsX, y);
-      doc.text(`₹${Number(invoice.tax_amount).toFixed(2)}`, pageWidth - 25, y, { align: "right" });
+      doc.text(Number(invoice.tax_amount).toFixed(2), pageWidth - 20, y, { align: "right" });
     }
 
     y += 8;
-    doc.setDrawColor(253, 224, 71);
-    doc.setLineWidth(0.5);
-    doc.line(totalsX - 5, y, pageWidth - 20, y);
+    doc.setDrawColor(254, 240, 138);
+    doc.setLineWidth(1);
+    doc.line(totalsX - 5, y, pageWidth - 15, y);
 
     y += 8;
+    doc.setFillColor(254, 240, 138);
+    doc.rect(totalsX - 8, y - 5, pageWidth - totalsX - 7, 10, 'F');
     doc.setFontSize(12);
-    doc.setFont(undefined, 'bold');
-    doc.text("TOTAL:", totalsX, y);
-    doc.text(`₹${Number(invoice.total_amount).toFixed(2)}`, pageWidth - 25, y, { align: "right" });
+    doc.setFont("helvetica", 'bold');
+    doc.text("TOTAL:", totalsX, y + 2);
+    doc.text(Number(invoice.total_amount).toFixed(2), pageWidth - 20, y + 2, { align: "right" });
 
     // Payment status
-    y += 12;
+    y += 15;
     doc.setFontSize(9);
-    doc.setFont(undefined, 'normal');
+    doc.setFont("helvetica", 'normal');
     const status = invoice.payment_status || "unpaid";
-    doc.text(`Payment Status: ${status.toUpperCase()}`, 20, y);
+    doc.text(`Payment Status: ${status.toUpperCase()}`, 15, y);
     if (invoice.payment_method) {
-      doc.text(`Payment Method: ${invoice.payment_method}`, 20, y + 6);
+      doc.text(`Payment Method: ${invoice.payment_method.toUpperCase()}`, 15, y + 5);
     }
 
     // Footer
     const footerY = doc.internal.pageSize.height - 20;
     doc.setFontSize(8);
-    doc.setTextColor(128, 128, 128);
+    doc.setTextColor(100, 100, 100);
     doc.text("Thank you for your business!", pageWidth / 2, footerY, { align: "center" });
 
     doc.save(`Invoice_${invoice.invoice_number}.pdf`);
