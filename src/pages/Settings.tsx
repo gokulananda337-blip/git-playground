@@ -5,8 +5,10 @@ import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Textarea } from "@/components/ui/textarea";
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { supabase } from "@/integrations/supabase/client";
 import { useToast } from "@/hooks/use-toast";
+import { useQuery, useMutation } from "@tanstack/react-query";
 import { Loader2, Building2, Phone, Mail, MapPin, FileText, Palette } from "lucide-react";
 
 export default function Settings() {
@@ -320,7 +322,111 @@ export default function Settings() {
           </CardContent>
         </Card>
 
+        <Card>
+          <CardHeader className="border-b">
+            <CardTitle className="flex items-center gap-2">
+              <Building2 className="h-5 w-5" />
+              Customer Portal Links
+            </CardTitle>
+            <CardDescription>
+              Generate secure portal links for your customers to track their services.
+            </CardDescription>
+          </CardHeader>
+          <CardContent className="pt-6">
+            <CustomerPortalManager />
+          </CardContent>
+        </Card>
+
       </div>
     </DashboardLayout>
+  );
+}
+
+function CustomerPortalManager() {
+  const { toast } = useToast();
+  const [selectedCustomerId, setSelectedCustomerId] = useState<string>("");
+  const [generatedLink, setGeneratedLink] = useState<string>("");
+
+  const { data: customers } = useQuery({
+    queryKey: ["customers"],
+    queryFn: async () => {
+      const { data, error } = await supabase
+        .from("customers")
+        .select("id, name, phone, email")
+        .order("name");
+      if (error) throw error;
+      return data;
+    }
+  });
+
+  const generateLink = useMutation({
+    mutationFn: async (customerId: string) => {
+      const { data, error } = await supabase.rpc("generate_customer_portal_link", {
+        p_customer_id: customerId
+      });
+      if (error) throw error;
+      return data;
+    },
+    onSuccess: (link) => {
+      const fullLink = `${window.location.origin}${link}`;
+      setGeneratedLink(fullLink);
+      navigator.clipboard.writeText(fullLink);
+      toast({ title: "Portal link generated and copied to clipboard!" });
+    },
+    onError: () => {
+      toast({ title: "Error generating link", variant: "destructive" });
+    }
+  });
+
+  return (
+    <div className="space-y-4">
+      <div className="grid gap-4 md:grid-cols-2">
+        <div className="space-y-2">
+          <Label>Select Customer</Label>
+          <Select value={selectedCustomerId} onValueChange={setSelectedCustomerId}>
+            <SelectTrigger>
+              <SelectValue placeholder="Choose a customer" />
+            </SelectTrigger>
+            <SelectContent>
+              {customers?.map((customer) => (
+                <SelectItem key={customer.id} value={customer.id}>
+                  {customer.name} - {customer.phone}
+                </SelectItem>
+              ))}
+            </SelectContent>
+          </Select>
+        </div>
+        <div className="flex items-end">
+          <Button
+            onClick={() => generateLink.mutate(selectedCustomerId)}
+            disabled={!selectedCustomerId || generateLink.isPending}
+            className="w-full"
+          >
+            {generateLink.isPending ? "Generating..." : "Generate Portal Link"}
+          </Button>
+        </div>
+      </div>
+
+      {generatedLink && (
+        <div className="p-4 bg-muted rounded-lg space-y-2">
+          <Label>Generated Portal Link</Label>
+          <div className="flex gap-2">
+            <Input value={generatedLink} readOnly className="font-mono text-sm" />
+            <Button
+              variant="outline"
+              onClick={() => {
+                navigator.clipboard.writeText(generatedLink);
+                toast({ title: "Link copied!" });
+              }}
+            >
+              Copy
+            </Button>
+          </div>
+          <p className="text-xs text-muted-foreground">
+            Share this link with your customer to give them access to their portal.
+          </p>
+        </div>
+      )}
+    </div>
   );
 }

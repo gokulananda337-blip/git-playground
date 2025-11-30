@@ -1,7 +1,6 @@
 import { useState } from "react";
-import { useNavigate } from "react-router-dom";
 import DashboardLayout from "@/components/DashboardLayout";
-import { Card, CardContent, CardHeader } from "@/components/ui/card";
+import { Card, CardContent } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogTrigger } from "@/components/ui/dialog";
@@ -13,51 +12,42 @@ import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover
 import { useToast } from "@/hooks/use-toast";
 import { supabase } from "@/integrations/supabase/client";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
-import { Plus, CheckCircle2, Clock, User, Car, Calendar as CalendarIcon, Filter } from "lucide-react";
-import { format } from "date-fns";
+import { Plus, Calendar as CalendarIcon, ChevronLeft, ChevronRight, Car, User, Clock } from "lucide-react";
+import { format, addDays, subDays } from "date-fns";
 import { cn } from "@/lib/utils";
 import { useRealtimeNotifications } from "@/hooks/use-realtime-notifications";
 
 const JobCards = () => {
   const [isAddOpen, setIsAddOpen] = useState(false);
-  const [statusFilter, setStatusFilter] = useState<string>("all");
   const [selectedDate, setSelectedDate] = useState<Date>(new Date());
   const { toast } = useToast();
   const queryClient = useQueryClient();
-  const navigate = useNavigate();
   
   useRealtimeNotifications();
 
   const [formData, setFormData] = useState({
     customer_id: "",
     vehicle_id: "",
-    booking_id: "",
     services: [] as any[],
     damage_notes: "",
     internal_notes: ""
   });
 
   const { data: jobCards, isLoading } = useQuery({
-    queryKey: ["jobCards", statusFilter, selectedDate],
+    queryKey: ["jobCards", selectedDate],
     queryFn: async () => {
       const dateStr = format(selectedDate, "yyyy-MM-dd");
-      let query = supabase
+      const { data, error } = await supabase
         .from("job_cards")
         .select(`
           *,
           customers (name, phone),
-          vehicles (vehicle_number, vehicle_type, brand, model),
-          bookings (booking_date, booking_time)
+          vehicles (vehicle_number, vehicle_type, brand, model)
         `)
         .gte("created_at", `${dateStr}T00:00:00`)
         .lte("created_at", `${dateStr}T23:59:59`)
         .order("created_at", { ascending: false });
 
-      if (statusFilter !== "all") {
-        query = query.eq("status", statusFilter as any);
-      }
-
-      const { data, error } = await query;
       if (error) throw error;
       return data;
     }
@@ -106,7 +96,7 @@ const JobCards = () => {
       const { data: { user } } = await supabase.auth.getUser();
       if (!user) throw new Error("Not authenticated");
 
-      const payload: any = {
+      const { error } = await supabase.from("job_cards").insert({
         customer_id: data.customer_id,
         vehicle_id: data.vehicle_id,
         services: data.services,
@@ -115,30 +105,20 @@ const JobCards = () => {
         user_id: user.id,
         status: "check_in",
         check_in_time: new Date().toISOString()
-      };
-
-      if (data.booking_id) {
-        payload.booking_id = data.booking_id;
-      }
-
-      const { error } = await supabase.from("job_cards").insert(payload);
+      });
       if (error) throw error;
     },
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ["jobCards"] });
-      toast({ title: "Job card created successfully" });
+      toast({ title: "Job card created" });
       setIsAddOpen(false);
       setFormData({
         customer_id: "",
         vehicle_id: "",
-        booking_id: "",
         services: [],
         damage_notes: "",
         internal_notes: ""
       });
-    },
-    onError: (error: any) => {
-      toast({ title: "Error", description: error.message, variant: "destructive" });
     }
   });
 
@@ -156,51 +136,37 @@ const JobCards = () => {
     }
   });
 
-  const createInvoice = useMutation({
-    mutationFn: async (job: any) => {
-      const { data: { user } } = await supabase.auth.getUser();
-      if (!user) throw new Error("Not authenticated");
-
-      const { data: existingInvoice } = await supabase
-        .from("invoices")
-        .select("id")
-        .eq("job_card_id", job.id)
-        .maybeSingle();
-
-      if (existingInvoice) throw new Error("Invoice already exists");
-
-      const services = Array.isArray(job.services) ? job.services : [];
-      const subtotal = services.reduce((sum: number, s: any) => sum + Number(s.price || 0), 0);
-      const invoiceNumber = `INV-${new Date().getFullYear()}${String(Date.now()).slice(-6)}`;
-
-      const { error } = await supabase.from("invoices").insert({
-        user_id: user.id,
-        customer_id: job.customer_id,
-        booking_id: job.booking_id,
-        job_card_id: job.id,
-        invoice_number: invoiceNumber,
-        items: services,
-        subtotal,
-        tax_amount: 0,
-        discount: 0,
-        total_amount: subtotal,
-        payment_status: "unpaid"
-      });
-
-      if (error) throw error;
-    },
-    onSuccess: () => {
-      queryClient.invalidateQueries({ queryKey: ["invoices"] });
-      toast({ title: "Invoice created" });
-    },
-    onError: (error: any) => {
-      toast({ title: "Error", description: error.message, variant: "destructive" });
-    }
-  });
-
   const getLifecycleStages = (job: any) => {
     const firstService = Array.isArray(job.services) && job.services[0];
     return (firstService as any)?.lifecycle_stages || ["check_in", "completed", "delivered"];
+  };
+
+  // Group jobs by stage
+  const groupedJobs = jobCards?.reduce((acc: any, job: any) => {
+    const stages = getLifecycleStages(job);
+    if (!acc[job.status]) {
+      acc[job.status] = [];
+    }
+    acc[job.status].push({ ...job, stages });
+    return acc;
+  }, {});
+
+  // Get all unique stages from all jobs
+  const allStages = Array.from(
+    new Set(
+      jobCards?.flatMap((job: any) => getLifecycleStages(job)) || []
+    )
+  );
+
+  const stageColors: Record<string, string> = {
+    check_in: "bg-blue-500",
+    pre_wash: "bg-cyan-500",
+    foam_wash: "bg-indigo-500",
+    interior: "bg-purple-500",
+    polishing: "bg-pink-500",
+    qc: "bg-orange-500",
+    completed: "bg-green-500",
+    delivered: "bg-emerald-500"
   };
 
   return (
@@ -208,8 +174,8 @@ const JobCards = () => {
       <div className="p-6 space-y-6">
         <div className="flex justify-between items-start">
           <div>
-            <h1 className="text-3xl font-bold">Job Cards</h1>
-            <p className="text-muted-foreground">Track service workflow</p>
+            <h1 className="text-3xl font-bold">Job Cards - Kanban Board</h1>
+            <p className="text-muted-foreground">Track daily workflow by stages</p>
           </div>
           <Dialog open={isAddOpen} onOpenChange={setIsAddOpen}>
             <DialogTrigger asChild>
@@ -320,187 +286,136 @@ const JobCards = () => {
           </Dialog>
         </div>
 
+        {/* Calendar Navigation */}
         <Card>
-          <CardHeader>
-            <div className="flex items-center gap-4 flex-wrap">
-              <div className="flex items-center gap-2">
-                <Filter className="h-4 w-4 text-muted-foreground" />
-                <Select value={statusFilter} onValueChange={setStatusFilter}>
-                  <SelectTrigger className="w-48">
-                    <SelectValue />
-                  </SelectTrigger>
-                  <SelectContent>
-                    <SelectItem value="all">All Stages</SelectItem>
-                    <SelectItem value="check_in">Check In</SelectItem>
-                    <SelectItem value="completed">Completed</SelectItem>
-                    <SelectItem value="delivered">Delivered</SelectItem>
-                  </SelectContent>
-                </Select>
-              </div>
+          <CardContent className="p-4">
+            <div className="flex items-center justify-between">
+              <Button
+                variant="outline"
+                size="sm"
+                onClick={() => setSelectedDate(subDays(selectedDate, 1))}
+              >
+                <ChevronLeft className="h-4 w-4" />
+              </Button>
+              
               <Popover>
                 <PopoverTrigger asChild>
                   <Button variant="outline" className="gap-2">
                     <CalendarIcon className="h-4 w-4" />
-                    {format(selectedDate, "MMM dd, yyyy")}
+                    {format(selectedDate, "EEEE, MMMM dd, yyyy")}
                   </Button>
                 </PopoverTrigger>
-                <PopoverContent className="w-auto p-0" align="start">
+                <PopoverContent className="w-auto p-0" align="center">
                   <Calendar
                     mode="single"
                     selected={selectedDate}
                     onSelect={(date) => date && setSelectedDate(date)}
                     initialFocus
-                    className="pointer-events-auto"
                   />
                 </PopoverContent>
               </Popover>
+
+              <Button
+                variant="outline"
+                size="sm"
+                onClick={() => setSelectedDate(addDays(selectedDate, 1))}
+              >
+                <ChevronRight className="h-4 w-4" />
+              </Button>
             </div>
-          </CardHeader>
-          <CardContent>
-            {isLoading ? (
-              <div className="text-center py-8 text-muted-foreground">Loading job cards...</div>
-            ) : jobCards?.length === 0 ? (
-              <div className="text-center py-8 text-muted-foreground">No job cards for this date</div>
-            ) : (
-              <div className="space-y-6">
-                {jobCards?.map((job) => {
-                  const stages = getLifecycleStages(job);
-                  const currentStageIndex = stages.indexOf(job.status);
-                  
-                  return (
-                    <Card key={job.id} className="hover:shadow-lg transition-shadow border-2 border-border">
-                      <CardContent className="p-6">
-                        <div className="flex gap-6">
-                          <div className="flex-1 space-y-4">
-                            <div className="flex items-center justify-between">
-                              <Badge className="bg-primary text-primary-foreground text-base px-4 py-1">
-                                {job.status.replace(/_/g, ' ').toUpperCase()}
-                              </Badge>
-                              <div className="flex items-center gap-2 text-sm text-muted-foreground">
-                                <Clock className="h-4 w-4" />
-                                {job.check_in_time ? format(new Date(job.check_in_time), "hh:mm a") : "N/A"}
-                              </div>
-                            </div>
-                            
-                            <div className="grid grid-cols-2 gap-4">
-                              <div className="flex items-center gap-3">
-                                <User className="h-5 w-5 text-muted-foreground" />
-                                <div>
-                                  <p className="font-semibold text-base">{job.customers?.name}</p>
-                                  <p className="text-sm text-muted-foreground">{job.customers?.phone}</p>
-                                </div>
-                              </div>
-                              <div className="flex items-center gap-3">
-                                <Car className="h-5 w-5 text-muted-foreground" />
-                                <div>
-                                  <p className="font-semibold text-base">{job.vehicles?.vehicle_number}</p>
-                                  <p className="text-sm text-muted-foreground">
-                                    {job.vehicles?.brand} {job.vehicles?.model}
-                                  </p>
-                                </div>
-                              </div>
-                            </div>
-
-                            {/* Vertical Timeline */}
-                            <div className="relative pl-8 pt-4">
-                              {stages.map((stage, index) => {
-                                const isCompleted = index <= currentStageIndex;
-                                const isCurrent = index === currentStageIndex;
-                                const isLast = index === stages.length - 1;
-                                
-                                return (
-                                  <div key={stage} className="relative pb-8 last:pb-0">
-                                    {/* Vertical line */}
-                                    {!isLast && (
-                                      <div 
-                                        className={cn(
-                                          "absolute left-[-20px] top-6 w-0.5 h-full transition-colors duration-300",
-                                          isCompleted ? "bg-primary" : "bg-border"
-                                        )}
-                                      />
-                                    )}
-                                    
-                                    {/* Checkpoint Circle */}
-                                    <div className="absolute left-[-26px] top-0">
-                                      {isCompleted ? (
-                                        <div className={cn(
-                                          "w-4 h-4 rounded-full flex items-center justify-center transition-all duration-300",
-                                          isCurrent 
-                                            ? "bg-primary ring-4 ring-primary/20 scale-125" 
-                                            : "bg-primary"
-                                        )}>
-                                          <CheckCircle2 className="h-3 w-3 text-primary-foreground" />
-                                        </div>
-                                      ) : (
-                                        <div className="w-4 h-4 rounded-full border-2 border-border bg-background" />
-                                      )}
-                                    </div>
-                                    
-                                    {/* Stage Label */}
-                                    <div className={cn(
-                                      "transition-all duration-200",
-                                      isCompleted ? "text-foreground font-medium" : "text-muted-foreground",
-                                      isCurrent && "text-primary font-bold text-lg"
-                                    )}>
-                                      {stage.replace(/_/g, ' ').toUpperCase()}
-                                      {isCurrent && <span className="ml-2 text-xs font-normal">(Current)</span>}
-                                      {isLast && isCompleted && <span className="ml-2 text-xs font-normal text-success">(Finished)</span>}
-                                    </div>
-                                  </div>
-                                );
-                              })}
-                            </div>
-
-                            {/* Services */}
-                            <div>
-                              <h4 className="font-semibold mb-2 text-sm uppercase text-muted-foreground">Services</h4>
-                              <div className="flex flex-wrap gap-2">
-                                {(Array.isArray(job.services) ? job.services : []).map((service: any, idx: number) => (
-                                  <Badge key={idx} variant="outline" className="bg-background">
-                                    {service.name} - ₹{service.price}
-                                  </Badge>
-                                ))}
-                              </div>
-                            </div>
-
-                            {/* Actions */}
-                            <div className="flex gap-2 pt-4 border-t">
-                              <Select
-                                value={job.status}
-                                onValueChange={(value) => updateStatus.mutate({ id: job.id, status: value })}
-                              >
-                                <SelectTrigger className="flex-1">
-                                  <SelectValue />
-                                </SelectTrigger>
-                                <SelectContent>
-                                  {stages.map((stage) => (
-                                    <SelectItem key={stage} value={stage}>
-                                      {stage.replace(/_/g, ' ').toUpperCase()}
-                                    </SelectItem>
-                                  ))}
-                                </SelectContent>
-                              </Select>
-                              
-                              {job.status === stages[stages.length - 1] && (
-                                <Button
-                                  onClick={() => createInvoice.mutate(job)}
-                                  disabled={createInvoice.isPending}
-                                  className="gap-2"
-                                >
-                                  Generate Invoice
-                                </Button>
-                              )}
-                            </div>
-                          </div>
-                        </div>
-                      </CardContent>
-                    </Card>
-                  );
-                })}
-              </div>
-            )}
           </CardContent>
         </Card>
+
+        {/* Kanban Board */}
+        {isLoading ? (
+          <div className="text-center py-12 text-muted-foreground">Loading job cards...</div>
+        ) : (
+          <div className="overflow-x-auto pb-4">
+            <div className="flex gap-4 min-w-max">
+              {allStages.map((stage: string) => {
+                const stageJobs = groupedJobs?.[stage] || [];
+                
+                return (
+                  <div key={stage} className="flex-shrink-0 w-80">
+                    <Card className="h-full">
+                      <div className={cn("p-4 rounded-t-lg", stageColors[stage] || "bg-muted")}>
+                        <h3 className="font-semibold text-white text-center">
+                          {stage.replace(/_/g, ' ').toUpperCase()}
+                        </h3>
+                        <p className="text-sm text-white/80 text-center mt-1">
+                          {stageJobs.length} {stageJobs.length === 1 ? 'job' : 'jobs'}
+                        </p>
+                      </div>
+                      <CardContent className="p-4 space-y-3 max-h-[calc(100vh-300px)] overflow-y-auto">
+                        {stageJobs.length === 0 ? (
+                          <p className="text-center text-muted-foreground text-sm py-8">No jobs</p>
+                        ) : (
+                          stageJobs.map((job: any) => (
+                            <Card key={job.id} className="border-2 hover:shadow-md transition-shadow">
+                              <CardContent className="p-4 space-y-3">
+                                <div className="flex items-start justify-between">
+                                  <div className="flex items-center gap-2">
+                                    <Car className="h-4 w-4 text-primary" />
+                                    <div>
+                                      <p className="font-semibold text-sm">{job.vehicles?.vehicle_number}</p>
+                                      <p className="text-xs text-muted-foreground">
+                                        {job.vehicles?.brand} {job.vehicles?.model}
+                                      </p>
+                                    </div>
+                                  </div>
+                                </div>
+
+                                <div className="flex items-center gap-2 text-xs text-muted-foreground">
+                                  <User className="h-3 w-3" />
+                                  <span>{job.customers?.name}</span>
+                                </div>
+
+                                <div className="flex items-center gap-2 text-xs text-muted-foreground">
+                                  <Clock className="h-3 w-3" />
+                                  <span>{job.check_in_time ? format(new Date(job.check_in_time), "hh:mm a") : "N/A"}</span>
+                                </div>
+
+                                {/* Services */}
+                                <div className="flex flex-wrap gap-1">
+                                  {Array.isArray(job.services) && job.services.map((service: any, idx: number) => (
+                                    <Badge key={idx} variant="outline" className="text-xs">
+                                      {service.name}
+                                    </Badge>
+                                  ))}
+                                </div>
+
+                                {/* Stage Navigation */}
+                                <div className="flex gap-2 pt-2">
+                                  {job.stages.map((s: string, idx: number) => {
+                                    const currentIdx = job.stages.indexOf(job.status);
+                                    if (idx === currentIdx + 1) {
+                                      return (
+                                        <Button
+                                          key={s}
+                                          size="sm"
+                                          variant="default"
+                                          className="flex-1 text-xs"
+                                          onClick={() => updateStatus.mutate({ id: job.id, status: s })}
+                                        >
+                                          Next
+                                        </Button>
+                                      );
+                                    }
+                                    return null;
+                                  })}
+                                </div>
+                              </CardContent>
+                            </Card>
+                          ))
+                        )}
+                      </CardContent>
+                    </Card>
+                  </div>
+                );
+              })}
+            </div>
+          </div>
+        )}
       </div>
     </DashboardLayout>
   );
