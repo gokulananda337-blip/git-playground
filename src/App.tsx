@@ -19,6 +19,7 @@ import Branches from "./pages/Branches";
 import Subscriptions from "./pages/Subscriptions";
 import Services from "./pages/Services";
 import Expenses from "./pages/Expenses";
+import CustomerPortal from "./pages/CustomerPortal";
 import NotFound from "./pages/NotFound";
 
 const queryClient = new QueryClient();
@@ -47,6 +48,7 @@ const App = () => (
           <Route path="/services" element={<Services />} />
           <Route path="/expenses" element={<Expenses />} />
           <Route path="/subscriptions" element={<Subscriptions />} />
+          <Route path="/customer-portal" element={<CustomerPortal />} />
           {/* ADD ALL CUSTOM ROUTES ABOVE THE CATCH-ALL "*" ROUTE */}
           <Route path="*" element={<NotFound />} />
         </Routes>

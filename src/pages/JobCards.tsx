@@ -26,7 +26,6 @@ const JobCards = () => {
   const queryClient = useQueryClient();
   const navigate = useNavigate();
   
-  // Enable real-time notifications
   useRealtimeNotifications();
 
   const [formData, setFormData] = useState({
@@ -369,12 +368,11 @@ const JobCards = () => {
                   const currentStageIndex = stages.indexOf(job.status);
                   
                   return (
-                    <Card key={job.id} className="hover:shadow-lg transition-shadow">
+                    <Card key={job.id} className="hover:shadow-lg transition-shadow border-2 border-border">
                       <CardContent className="p-6">
                         <div className="flex gap-6">
-                          {/* Left side - Customer & Vehicle info */}
                           <div className="flex-1 space-y-4">
-                            <div className="flex items-center gap-3">
+                            <div className="flex items-center justify-between">
                               <Badge className="bg-primary text-primary-foreground text-base px-4 py-1">
                                 {job.status.replace(/_/g, ' ').toUpperCase()}
                               </Badge>
@@ -403,83 +401,96 @@ const JobCards = () => {
                               </div>
                             </div>
 
-                            {/* Timeline with checkpoints */}
+                            {/* Vertical Timeline */}
                             <div className="relative pl-8 pt-4">
                               {stages.map((stage, index) => {
                                 const isCompleted = index <= currentStageIndex;
                                 const isCurrent = index === currentStageIndex;
+                                const isLast = index === stages.length - 1;
                                 
                                 return (
                                   <div key={stage} className="relative pb-8 last:pb-0">
                                     {/* Vertical line */}
-                                    {index < stages.length - 1 && (
+                                    {!isLast && (
                                       <div 
                                         className={cn(
-                                          "absolute left-[-20px] top-6 w-0.5 h-full",
+                                          "absolute left-[-20px] top-6 w-0.5 h-full transition-colors duration-300",
                                           isCompleted ? "bg-primary" : "bg-border"
                                         )}
                                       />
                                     )}
                                     
-                                    {/* Checkpoint */}
+                                    {/* Checkpoint Circle */}
                                     <div className="absolute left-[-26px] top-0">
                                       {isCompleted ? (
                                         <div className={cn(
-                                          "w-4 h-4 rounded-full flex items-center justify-center",
-                                          isCurrent ? "bg-primary ring-4 ring-primary/20" : "bg-primary"
+                                          "w-4 h-4 rounded-full flex items-center justify-center transition-all duration-300",
+                                          isCurrent 
+                                            ? "bg-primary ring-4 ring-primary/20 scale-125" 
+                                            : "bg-primary"
                                         )}>
-                                          {!isCurrent && (
-                                            <CheckCircle2 className="w-3 h-3 text-primary-foreground" />
-                                          )}
+                                          <CheckCircle2 className="h-3 w-3 text-primary-foreground" />
                                         </div>
                                       ) : (
                                         <div className="w-4 h-4 rounded-full border-2 border-border bg-background" />
                                       )}
                                     </div>
                                     
-                                    {/* Stage label */}
-                                    <div>
-                                      <p className={cn(
-                                        "font-medium",
-                                        isCompleted ? "text-foreground" : "text-muted-foreground"
-                                      )}>
-                                        {index + 1}. {stage.replace(/_/g, ' ').toUpperCase()}
-                                      </p>
-                                      {isCurrent && (
-                                        <p className="text-xs text-primary mt-1">In Progress</p>
-                                      )}
+                                    {/* Stage Label */}
+                                    <div className={cn(
+                                      "transition-all duration-200",
+                                      isCompleted ? "text-foreground font-medium" : "text-muted-foreground",
+                                      isCurrent && "text-primary font-bold text-lg"
+                                    )}>
+                                      {stage.replace(/_/g, ' ').toUpperCase()}
+                                      {isCurrent && <span className="ml-2 text-xs font-normal">(Current)</span>}
+                                      {isLast && isCompleted && <span className="ml-2 text-xs font-normal text-success">(Finished)</span>}
                                     </div>
                                   </div>
                                 );
                               })}
                             </div>
-                          </div>
 
-                          {/* Right side - Actions */}
-                          <div className="flex flex-col gap-2 items-end justify-start">
-                            <Select
-                              value={job.status}
-                              onValueChange={(value) => updateStatus.mutate({ id: job.id, status: value })}
-                            >
-                              <SelectTrigger className="w-48">
-                                <SelectValue />
-                              </SelectTrigger>
-                              <SelectContent>
-                                {stages.map((stage: string, index: number) => (
-                                  <SelectItem key={stage} value={stage}>
-                                    {index + 1}. {stage.replace(/_/g, " ").toUpperCase()}
-                                  </SelectItem>
+                            {/* Services */}
+                            <div>
+                              <h4 className="font-semibold mb-2 text-sm uppercase text-muted-foreground">Services</h4>
+                              <div className="flex flex-wrap gap-2">
+                                {(Array.isArray(job.services) ? job.services : []).map((service: any, idx: number) => (
+                                  <Badge key={idx} variant="outline" className="bg-background">
+                                    {service.name} - ₹{service.price}
+                                  </Badge>
                                 ))}
-                              </SelectContent>
-                            </Select>
-                            <Button
-                              size="sm"
-                              onClick={() => createInvoice.mutate(job)}
-                              disabled={currentStageIndex < stages.length - 1}
-                              className="w-48"
-                            >
-                              Create Invoice
-                            </Button>
+                              </div>
+                            </div>
+
+                            {/* Actions */}
+                            <div className="flex gap-2 pt-4 border-t">
+                              <Select
+                                value={job.status}
+                                onValueChange={(value) => updateStatus.mutate({ id: job.id, status: value })}
+                              >
+                                <SelectTrigger className="flex-1">
+                                  <SelectValue />
+                                </SelectTrigger>
+                                <SelectContent>
+                                  {stages.map((stage) => (
+                                    <SelectItem key={stage} value={stage}>
+                                      {stage.replace(/_/g, ' ').toUpperCase()}
+                                    </SelectItem>
+                                  ))}
+                                </SelectContent>
+                              </Select>
+                              
+                              {job.status === stages[stages.length - 1] && (
+                                <Button
+                                  onClick={() => createInvoice.mutate(job)}
+                                  disabled={createInvoice.isPending}
+                                  className="gap-2"
+                                >
+                                  Generate Invoice
+                                </Button>
+                              )}
+                            </div>
                           </div>
                         </div>
                       </CardContent>

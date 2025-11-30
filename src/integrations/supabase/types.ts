@@ -125,6 +125,47 @@ export type Database = {
         }
         Relationships: []
       }
+      customer_portal_access: {
+        Row: {
+          access_token: string
+          created_at: string | null
+          customer_id: string
+          email: string | null
+          id: string
+          is_active: boolean | null
+          last_login: string | null
+          phone: string | null
+        }
+        Insert: {
+          access_token: string
+          created_at?: string | null
+          customer_id: string
+          email?: string | null
+          id?: string
+          is_active?: boolean | null
+          last_login?: string | null
+          phone?: string | null
+        }
+        Update: {
+          access_token?: string
+          created_at?: string | null
+          customer_id?: string
+          email?: string | null
+          id?: string
+          is_active?: boolean | null
+          last_login?: string | null
+          phone?: string | null
+        }
+        Relationships: [
+          {
+            foreignKeyName: "customer_portal_access_customer_id_fkey"
+            columns: ["customer_id"]
+            isOneToOne: true
+            referencedRelation: "customers"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       customers: {
         Row: {
           address: string | null
@@ -733,6 +774,10 @@ export type Database = {
       [_ in never]: never
     }
     Functions: {
+      generate_customer_portal_link: {
+        Args: { p_customer_id: string }
+        Returns: string
+      }
       has_role: {
         Args: {
           _role: Database["public"]["Enums"]["app_role"]
