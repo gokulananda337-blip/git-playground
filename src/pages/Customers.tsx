@@ -4,7 +4,7 @@ import DashboardLayout from "@/components/DashboardLayout";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
-import { Plus, Search, Phone, Mail, Tag } from "lucide-react";
+import { Plus, Search, Phone, Mail, Tag, Copy, ExternalLink, Edit, Trash2 } from "lucide-react";
 import { useToast } from "@/hooks/use-toast";
 import {
   Dialog,
@@ -34,6 +34,7 @@ const Customers = () => {
   const [open, setOpen] = useState(false);
   const [detailOpen, setDetailOpen] = useState(false);
   const [selectedCustomer, setSelectedCustomer] = useState<Customer | null>(null);
+  const [portalLink, setPortalLink] = useState("");
   const [formData, setFormData] = useState({
     name: "",
     phone: "",
@@ -109,6 +110,24 @@ const Customers = () => {
         description: error.message,
         variant: "destructive",
       });
+    }
+  };
+
+  const generatePortalLink = async (customerId: string) => {
+    try {
+      const { data, error } = await supabase.rpc('generate_customer_portal_link', {
+        p_customer_id: customerId
+      });
+
+      if (error) throw error;
+
+      const fullLink = `${window.location.origin}${data}`;
+      setPortalLink(fullLink);
+      
+      navigator.clipboard.writeText(fullLink);
+      toast({ title: "Portal link copied!", description: "Share this link with your customer" });
+    } catch (error: any) {
+      toast({ title: "Error", description: error.message, variant: "destructive" });
     }
   };
 
@@ -338,10 +357,34 @@ const Customers = () => {
                       </div>
                     )}
                   </div>
+                  <div className="space-y-2">
+                    <Button
+                      className="w-full gap-2"
+                      onClick={() => generatePortalLink(selectedCustomer.id)}
+                    >
+                      <ExternalLink className="h-4 w-4" />
+                      Generate Customer Portal Link
+                    </Button>
+                    {portalLink && (
+                      <div className="flex items-center gap-2 p-2 bg-muted rounded-md">
+                        <code className="flex-1 text-xs truncate">{portalLink}</code>
+                        <Button
+                          size="sm"
+                          variant="ghost"
+                          onClick={() => {
+                            navigator.clipboard.writeText(portalLink);
+                            toast({ title: "Copied to clipboard!" });
+                          }}
+                        >
+                          <Copy className="h-4 w-4" />
+                        </Button>
+                      </div>
+                    )}
+                  </div>
                   <div className="flex gap-2 pt-2 border-t">
                     <Button
                       variant="outline"
-                      className="flex-1"
+                      className="flex-1 gap-2"
                       onClick={() => {
                         setFormData({
                           name: selectedCustomer.name,
@@ -354,11 +397,12 @@ const Customers = () => {
                         setOpen(true);
                       }}
                     >
+                      <Edit className="h-4 w-4 mr-2" />
                       Edit
                     </Button>
                     <Button
                       variant="destructive"
-                      className="flex-1"
+                      className="flex-1 gap-2"
                       onClick={async () => {
                         if (confirm("Delete this customer? This cannot be undone.")) {
                           const { error } = await supabase
@@ -375,6 +419,7 @@ const Customers = () => {
                         }
                       }}
                     >
+                      <Trash2 className="h-4 w-4 mr-2" />
                       Delete
                     </Button>
                   </div>
