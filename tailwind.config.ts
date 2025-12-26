@@ -14,8 +14,7 @@ export default {
     },
     extend: {
       fontFamily: {
-        sans: ['Inter', 'Roboto', 'system-ui', 'sans-serif'],
-        body: ['Roboto', 'Inter', 'system-ui', 'sans-serif'],
+        sans: ['Lato', '-apple-system', 'BlinkMacSystemFont', 'Segoe UI', 'sans-serif'],
       },
       colors: {
         border: "hsl(var(--border))",
@@ -63,6 +62,15 @@ export default {
           DEFAULT: "hsl(var(--info))",
           foreground: "hsl(var(--info-foreground))",
         },
+        // Multicolor palette for numbers/buttons/visuals
+        "color-blue": "hsl(var(--color-blue))",
+        "color-green": "hsl(var(--color-green))",
+        "color-orange": "hsl(var(--color-orange))",
+        "color-purple": "hsl(var(--color-purple))",
+        "color-pink": "hsl(var(--color-pink))",
+        "color-cyan": "hsl(var(--color-cyan))",
+        "color-red": "hsl(var(--color-red))",
+        "color-yellow": "hsl(var(--color-yellow))",
         sidebar: {
           DEFAULT: "hsl(var(--sidebar-background))",
           foreground: "hsl(var(--sidebar-foreground))",
@@ -81,25 +89,22 @@ export default {
       },
       keyframes: {
         "accordion-down": {
-          from: {
-            height: "0",
-          },
-          to: {
-            height: "var(--radix-accordion-content-height)",
-          },
+          from: { height: "0" },
+          to: { height: "var(--radix-accordion-content-height)" },
         },
         "accordion-up": {
-          from: {
-            height: "var(--radix-accordion-content-height)",
-          },
-          to: {
-            height: "0",
-          },
+          from: { height: "var(--radix-accordion-content-height)" },
+          to: { height: "0" },
+        },
+        "pulse-slow": {
+          "0%, 100%": { opacity: "1" },
+          "50%": { opacity: "0.5" },
         },
       },
       animation: {
         "accordion-down": "accordion-down 0.2s ease-out",
         "accordion-up": "accordion-up 0.2s ease-out",
+        "pulse-slow": "pulse-slow 2s ease-in-out infinite",
       },
     },
   },
