@@ -35,12 +35,12 @@ const menuItems = [
   { title: "Vehicles", url: "/vehicles", icon: Car },
   { title: "Services", url: "/services", icon: Wrench },
   { title: "Bookings", url: "/bookings", icon: Calendar },
-  { title: "Job Cards", url: "/job-cards", icon: FileText },
   { title: "Invoices", url: "/invoices", icon: CreditCard },
   { title: "Staff", url: "/staff", icon: UserCog },
   { title: "Inventory", url: "/inventory", icon: Package },
   { title: "Expenses", url: "/expenses", icon: DollarSign },
   { title: "Subscriptions", url: "/subscriptions", icon: Gift },
+  { title: "Reviews", url: "/reviews", icon: MessageSquare },
   { title: "Reports", url: "/reports", icon: BarChart3 },
   { title: "Settings", url: "/settings", icon: Settings },
 ];

@@ -253,10 +253,9 @@ const Bookings = () => {
                         setFormData({ ...formData, booking_date: date ? format(date, "yyyy-MM-dd") : "" });
                       }}
                       disabled={(date) => {
-                        const yesterday = new Date();
-                        yesterday.setDate(yesterday.getDate() - 1);
-                        yesterday.setHours(0, 0, 0, 0);
-                        return date < yesterday;
+                        const today = new Date();
+                        today.setHours(0, 0, 0, 0);
+                        return date < today;
                       }}
                       className="rounded-md border"
                     />
@@ -487,9 +486,9 @@ const Bookings = () => {
                           <Button 
                             size="sm" 
                             variant="outline"
-                            onClick={() => navigate(`/job-cards?booking=${booking.id}`)}
+                            onClick={() => navigate(`/bookings/${booking.id}`)}
                           >
-                            View Job Card
+                            Manage Job
                           </Button>
                         </div>
                       </div>

@@ -9,7 +9,7 @@ import TodaysWork from "./pages/TodaysWork";
 import Customers from "./pages/Customers";
 import Vehicles from "./pages/Vehicles";
 import Bookings from "./pages/Bookings";
-import JobCards from "./pages/JobCards";
+import BookingDetail from "./pages/BookingDetail";
 import Invoices from "./pages/Invoices";
 import Reports from "./pages/Reports";
 import Staff from "./pages/Staff";
@@ -19,6 +19,7 @@ import Branches from "./pages/Branches";
 import Subscriptions from "./pages/Subscriptions";
 import Services from "./pages/Services";
 import Expenses from "./pages/Expenses";
+import Reviews from "./pages/Reviews";
 import CustomerPortal from "./pages/CustomerPortal";
 import NotFound from "./pages/NotFound";
 
@@ -38,7 +39,7 @@ const App = () => (
           <Route path="/customers" element={<Customers />} />
           <Route path="/vehicles" element={<Vehicles />} />
           <Route path="/bookings" element={<Bookings />} />
-          <Route path="/job-cards" element={<JobCards />} />
+          <Route path="/bookings/:id" element={<BookingDetail />} />
           <Route path="/invoices" element={<Invoices />} />
           <Route path="/reports" element={<Reports />} />
           <Route path="/staff" element={<Staff />} />
@@ -48,6 +49,7 @@ const App = () => (
           <Route path="/services" element={<Services />} />
           <Route path="/expenses" element={<Expenses />} />
           <Route path="/subscriptions" element={<Subscriptions />} />
+          <Route path="/reviews" element={<Reviews />} />
           <Route path="/customer-portal" element={<CustomerPortal />} />
           {/* ADD ALL CUSTOM ROUTES ABOVE THE CATCH-ALL "*" ROUTE */}
           <Route path="*" element={<NotFound />} />
