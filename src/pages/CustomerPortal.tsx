@@ -7,12 +7,16 @@ import { Badge } from "@/components/ui/badge";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from "@/components/ui/dialog";
 import { Label } from "@/components/ui/label";
+import { Input } from "@/components/ui/input";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Calendar } from "@/components/ui/calendar";
 import { Textarea } from "@/components/ui/textarea";
 import { useToast } from "@/hooks/use-toast";
-import { FileText, Calendar as CalendarIcon, CreditCard, User, Car, Clock, CheckCircle2, Package, Star, MessageSquare } from "lucide-react";
-import { format } from "date-fns";
+import { 
+  FileText, Calendar as CalendarIcon, CreditCard, User, Car, Clock, 
+  CheckCircle2, Package, Star, MessageSquare, Plus, Settings, Home, Wrench
+} from "lucide-react";
+import { format, addDays, isBefore, startOfDay } from "date-fns";
 import { cn } from "@/lib/utils";
 import jsPDF from "jspdf";
 
@@ -32,11 +36,22 @@ const CustomerPortal = () => {
   const [vehicles, setVehicles] = useState<any[]>([]);
   const [services, setServices] = useState<any[]>([]);
   const [reviews, setReviews] = useState<any[]>([]);
+  const [bookings, setBookings] = useState<any[]>([]);
+  const [bookedDates, setBookedDates] = useState<Date[]>([]);
   const [loading, setLoading] = useState(true);
   const [reviewDialogOpen, setReviewDialogOpen] = useState(false);
+  const [vehicleDialogOpen, setVehicleDialogOpen] = useState(false);
   const [selectedJobForReview, setSelectedJobForReview] = useState<any>(null);
   const [reviewForm, setReviewForm] = useState({ rating: 5, feedback: "" });
+  const [vehicleForm, setVehicleForm] = useState({
+    vehicle_number: "",
+    vehicle_type: "sedan" as const,
+    brand: "",
+    model: "",
+    color: ""
+  });
   const [paymentLoading, setPaymentLoading] = useState<string | null>(null);
+  const [activeTab, setActiveTab] = useState("home");
   const { toast } = useToast();
   const navigate = useNavigate();
 
@@ -120,12 +135,14 @@ const CustomerPortal = () => {
 
       setCustomerData(customer);
 
-      const [vehiclesRes, servicesRes, jobsRes, invoicesRes, reviewsRes] = await Promise.all([
+      const [vehiclesRes, servicesRes, jobsRes, invoicesRes, reviewsRes, bookingsRes, allBookingsRes] = await Promise.all([
         supabase.from("vehicles").select("*").eq("customer_id", customer.id),
         supabase.from("services").select("*").eq("is_active", true),
         supabase.from("job_cards").select(`*, vehicles (vehicle_number, vehicle_type, brand, model)`).eq("customer_id", customer.id).order("created_at", { ascending: false }),
         supabase.from("invoices").select("*").eq("customer_id", customer.id).order("created_at", { ascending: false }),
-        supabase.from("reviews").select("*").eq("customer_id", customer.id)
+        supabase.from("reviews").select("*").eq("customer_id", customer.id),
+        supabase.from("bookings").select("*").eq("customer_id", customer.id).order("created_at", { ascending: false }),
+        supabase.from("bookings").select("booking_date").gte("booking_date", format(new Date(), "yyyy-MM-dd"))
       ]);
 
       setVehicles(vehiclesRes.data || []);
@@ -133,6 +150,11 @@ const CustomerPortal = () => {
       setJobCards(jobsRes.data || []);
       setInvoices(invoicesRes.data || []);
       setReviews(reviewsRes.data || []);
+      setBookings(bookingsRes.data || []);
+      
+      // Get booked dates
+      const bookedDatesList = allBookingsRes.data?.map(b => new Date(b.booking_date)) || [];
+      setBookedDates(bookedDatesList);
 
       await supabase
         .from("customer_portal_access")
@@ -151,6 +173,10 @@ const CustomerPortal = () => {
     if (!customerData) return;
     
     try {
+      // Get the vehicle's user_id
+      const selectedVehicle = vehicles.find(v => v.id === bookingForm.vehicle_id);
+      if (!selectedVehicle) throw new Error("Vehicle not found");
+
       const { error } = await supabase.from("bookings").insert({
         customer_id: customerData.id,
         vehicle_id: bookingForm.vehicle_id,
@@ -159,15 +185,57 @@ const CustomerPortal = () => {
         services: bookingForm.services,
         notes: bookingForm.notes,
         status: "pending",
-        user_id: customerData.id
+        user_id: selectedVehicle.user_id
       });
 
       if (error) throw error;
 
       toast({ title: "Booking created!", description: "We'll contact you soon." });
       setBookingForm({ vehicle_id: "", booking_date: "", booking_time: "", services: [], notes: "" });
+      
+      // Refresh bookings
+      const { data: newBookings } = await supabase
+        .from("bookings")
+        .select("*")
+        .eq("customer_id", customerData.id)
+        .order("created_at", { ascending: false });
+      setBookings(newBookings || []);
     } catch (error: any) {
       toast({ title: "Error creating booking", description: error.message, variant: "destructive" });
+    }
+  };
+
+  const addVehicle = async () => {
+    if (!customerData) return;
+    
+    try {
+      // Get user_id from existing vehicle or customer
+      const existingVehicle = vehicles[0];
+      if (!existingVehicle) {
+        toast({ title: "Error", description: "Cannot add vehicle without owner reference", variant: "destructive" });
+        return;
+      }
+
+      const { error } = await supabase.from("vehicles").insert({
+        customer_id: customerData.id,
+        user_id: existingVehicle.user_id,
+        ...vehicleForm
+      });
+
+      if (error) throw error;
+
+      toast({ title: "Vehicle added successfully!" });
+      setVehicleDialogOpen(false);
+      setVehicleForm({ vehicle_number: "", vehicle_type: "sedan", brand: "", model: "", color: "" });
+      
+      // Refresh vehicles
+      const { data: newVehicles } = await supabase
+        .from("vehicles")
+        .select("*")
+        .eq("customer_id", customerData.id);
+      setVehicles(newVehicles || []);
+    } catch (error: any) {
+      toast({ title: "Error", description: error.message, variant: "destructive" });
     }
   };
 
@@ -180,7 +248,7 @@ const CustomerPortal = () => {
         job_card_id: selectedJobForReview.id,
         rating: reviewForm.rating,
         feedback: reviewForm.feedback || null,
-        user_id: customerData.id
+        user_id: selectedJobForReview.user_id
       });
 
       if (error) throw error;
@@ -198,7 +266,7 @@ const CustomerPortal = () => {
     setPaymentLoading(invoice.id);
     toast({ 
       title: "Payment Gateway", 
-      description: "Razorpay integration ready. Add RAZORPAY_KEY_ID in settings to enable payments." 
+      description: "Razorpay integration ready. Contact support to enable payments." 
     });
     setPaymentLoading(null);
   };
@@ -208,6 +276,25 @@ const CustomerPortal = () => {
     "12:00", "12:30", "13:00", "13:30", "14:00", "14:30", "15:00", "15:30",
     "16:00", "16:30", "17:00", "17:30", "18:00"
   ];
+
+  const getAvailableTimeSlots = () => {
+    if (!bookingForm.booking_date) return timeSlots;
+    
+    const selectedDate = new Date(bookingForm.booking_date);
+    const today = startOfDay(new Date());
+    
+    if (selectedDate.getTime() === today.getTime()) {
+      const now = new Date();
+      return timeSlots.filter(slot => {
+        const [hours, minutes] = slot.split(":").map(Number);
+        const slotTime = new Date();
+        slotTime.setHours(hours, minutes, 0, 0);
+        return slotTime > now;
+      });
+    }
+    
+    return timeSlots;
+  };
 
   const stageColors: Record<string, string> = {
     check_in: "bg-color-blue text-white",
@@ -288,8 +375,8 @@ const CustomerPortal = () => {
 
   if (!customerData) {
     return (
-      <div className="min-h-screen bg-background flex items-center justify-center">
-        <Card className="max-w-md border">
+      <div className="min-h-screen bg-background flex items-center justify-center p-4">
+        <Card className="max-w-md w-full border">
           <CardContent className="pt-6 text-center">
             <p className="text-muted-foreground">Unable to load customer data</p>
             <Button onClick={() => navigate("/")} className="mt-4">Go to Home</Button>
@@ -300,62 +387,127 @@ const CustomerPortal = () => {
   }
 
   const hasReviewedJob = (jobId: string) => reviews.some(r => r.job_card_id === jobId);
+  const activeJobCards = jobCards.filter(j => j.status !== "delivered");
+  const completedJobCards = jobCards.filter(j => j.status === "delivered" || j.status === "completed");
 
   return (
-    <div className="min-h-screen bg-background">
-      {/* Clean B&W Header */}
-      <div className="bg-foreground border-b">
-        <div className="container mx-auto px-4 md:px-6 py-6">
-          <div className="flex flex-col md:flex-row items-start md:items-center justify-between gap-4">
-            <div>
-              <h1 className="text-2xl md:text-3xl font-bold text-background">
-                Welcome back, {customerData.name}
-              </h1>
-              <p className="text-background/70 text-sm mt-1">
-                Track services, view invoices, and manage bookings
-              </p>
-            </div>
-            <div className="bg-background rounded-lg px-4 py-3 border">
-              <div className="flex items-center gap-3">
-                <div className="bg-foreground rounded-full p-2">
-                  <User className="h-4 w-4 text-background" />
-                </div>
-                <div>
-                  <p className="font-semibold text-sm">{customerData.name}</p>
-                  <p className="text-xs text-muted-foreground">{customerData.phone}</p>
-                </div>
-              </div>
-            </div>
+    <div className="min-h-screen bg-background pb-20 md:pb-0">
+      {/* Mobile Header */}
+      <div className="bg-foreground sticky top-0 z-50">
+        <div className="px-4 py-4 flex items-center justify-between">
+          <div>
+            <h1 className="text-lg font-bold text-background">Hi, {customerData.name.split(" ")[0]}</h1>
+            <p className="text-xs text-background/70">{customerData.phone}</p>
+          </div>
+          <div className="bg-background rounded-full w-10 h-10 flex items-center justify-center">
+            <User className="h-5 w-5" />
           </div>
         </div>
       </div>
 
       {/* Content */}
-      <div className="container mx-auto px-4 md:px-6 py-6">
-        <Tabs defaultValue="jobs" className="space-y-6">
-          <TabsList className="bg-secondary border p-1">
-            <TabsTrigger value="jobs" className="gap-2 data-[state=active]:bg-foreground data-[state=active]:text-background">
-              <Package className="h-4 w-4" />
-              Jobs ({jobCards.length})
-            </TabsTrigger>
-            <TabsTrigger value="invoices" className="gap-2 data-[state=active]:bg-foreground data-[state=active]:text-background">
-              <FileText className="h-4 w-4" />
-              Invoices ({invoices.length})
-            </TabsTrigger>
-            <TabsTrigger value="booking" className="gap-2 data-[state=active]:bg-foreground data-[state=active]:text-background">
-              <CalendarIcon className="h-4 w-4" />
-              Book
-            </TabsTrigger>
-          </TabsList>
+      <div className="p-4 space-y-4">
+        {activeTab === "home" && (
+          <>
+            {/* Quick Stats */}
+            <div className="grid grid-cols-3 gap-3">
+              <Card className="text-center p-3">
+                <p className="text-2xl font-bold text-color-blue">{vehicles.length}</p>
+                <p className="text-xs text-muted-foreground">Vehicles</p>
+              </Card>
+              <Card className="text-center p-3">
+                <p className="text-2xl font-bold text-color-green">{activeJobCards.length}</p>
+                <p className="text-xs text-muted-foreground">Active Jobs</p>
+              </Card>
+              <Card className="text-center p-3">
+                <p className="text-2xl font-bold text-color-orange">{invoices.filter(i => i.payment_status !== "paid").length}</p>
+                <p className="text-xs text-muted-foreground">Due</p>
+              </Card>
+            </div>
 
-          {/* Job Cards Tab with Real-time Updates */}
-          <TabsContent value="jobs" className="space-y-4">
+            {/* Active Job Cards */}
+            {activeJobCards.length > 0 && (
+              <div>
+                <h3 className="font-semibold mb-3 flex items-center gap-2">
+                  <Package className="h-4 w-4" /> Active Services
+                </h3>
+                <div className="space-y-3">
+                  {activeJobCards.map((job) => {
+                    const jobServices = Array.isArray(job.services) ? job.services : [];
+                    const firstService = jobServices[0];
+                    const stages = (firstService?.lifecycle_stages as string[]) || ["check_in", "completed", "delivered"];
+                    const currentIndex = stages.indexOf(job.status);
+                    const progress = ((currentIndex + 1) / stages.length) * 100;
+
+                    return (
+                      <Card key={job.id} className="overflow-hidden">
+                        <CardContent className="p-4">
+                          <div className="flex items-center justify-between mb-3">
+                            <div className="flex items-center gap-2">
+                              <Car className="h-4 w-4 text-muted-foreground" />
+                              <span className="font-medium">{job.vehicles?.vehicle_number}</span>
+                            </div>
+                            <Badge className={stageColors[job.status]}>
+                              {job.status.replace(/_/g, " ")}
+                            </Badge>
+                          </div>
+                          
+                          <div className="h-2 bg-secondary rounded-full overflow-hidden mb-2">
+                            <div 
+                              className="h-full bg-color-green transition-all duration-500"
+                              style={{ width: `${progress}%` }}
+                            />
+                          </div>
+                          
+                          <div className="flex justify-between text-xs text-muted-foreground">
+                            <span>{stages[0].replace(/_/g, " ")}</span>
+                            <span>{stages[stages.length - 1].replace(/_/g, " ")}</span>
+                          </div>
+                        </CardContent>
+                      </Card>
+                    );
+                  })}
+                </div>
+              </div>
+            )}
+
+            {/* Recent Bookings */}
+            {bookings.length > 0 && (
+              <div>
+                <h3 className="font-semibold mb-3 flex items-center gap-2">
+                  <CalendarIcon className="h-4 w-4" /> Recent Bookings
+                </h3>
+                <div className="space-y-2">
+                  {bookings.slice(0, 3).map((booking) => (
+                    <Card key={booking.id} className="p-3">
+                      <div className="flex items-center justify-between">
+                        <div>
+                          <p className="font-medium text-sm">
+                            {format(new Date(booking.booking_date), "MMM dd")} at {booking.booking_time}
+                          </p>
+                          <p className="text-xs text-muted-foreground">
+                            {Array.isArray(booking.services) ? booking.services.map((s: any) => s.name).join(", ") : ""}
+                          </p>
+                        </div>
+                        <Badge variant={booking.status === "confirmed" ? "default" : "secondary"}>
+                          {booking.status}
+                        </Badge>
+                      </div>
+                    </Card>
+                  ))}
+                </div>
+              </div>
+            )}
+          </>
+        )}
+
+        {activeTab === "jobs" && (
+          <div className="space-y-4">
+            <h2 className="text-lg font-bold">Job Cards</h2>
             {jobCards.length === 0 ? (
-              <Card className="border">
-                <CardContent className="py-16 text-center">
-                  <Package className="h-16 w-16 text-muted-foreground mx-auto mb-4 opacity-30" />
-                  <p className="text-muted-foreground">No job cards found</p>
-                </CardContent>
+              <Card className="p-8 text-center">
+                <Package className="h-12 w-12 text-muted-foreground mx-auto mb-2 opacity-30" />
+                <p className="text-muted-foreground">No job cards yet</p>
               </Card>
             ) : (
               jobCards.map((job) => {
@@ -367,230 +519,132 @@ const CustomerPortal = () => {
                 const reviewed = hasReviewedJob(job.id);
                 
                 return (
-                  <Card key={job.id} className="border hover:shadow-md transition-all">
-                    <CardHeader className="bg-secondary/50 border-b pb-4">
-                      <div className="flex flex-col md:flex-row md:items-center justify-between gap-3">
-                        <div className="flex items-center gap-3">
-                          <div className="bg-foreground rounded-lg p-2">
-                            <Car className="h-5 w-5 text-background" />
-                          </div>
-                          <div>
-                            <CardTitle className="text-lg">{job.vehicles?.vehicle_number}</CardTitle>
-                            <p className="text-sm text-muted-foreground">
-                              {job.vehicles?.brand} {job.vehicles?.model}
-                            </p>
-                          </div>
-                        </div>
+                  <Card key={job.id} className="overflow-hidden">
+                    <CardHeader className="pb-2 bg-secondary/30">
+                      <div className="flex items-center justify-between">
                         <div className="flex items-center gap-2">
-                          <Badge className={cn("text-sm px-3 py-1", stageColors[job.status])}>
-                            {job.status.replace(/_/g, ' ').toUpperCase()}
-                          </Badge>
-                          {isCompleted && !reviewed && (
-                            <Button
-                              size="sm"
-                              variant="outline"
-                              onClick={() => {
-                                setSelectedJobForReview(job);
-                                setReviewDialogOpen(true);
-                              }}
-                              className="gap-1"
-                            >
-                              <Star className="h-3 w-3" />
-                              Rate
-                            </Button>
-                          )}
+                          <Car className="h-4 w-4" />
+                          <span className="font-semibold">{job.vehicles?.vehicle_number}</span>
                         </div>
+                        <Badge className={stageColors[job.status]}>
+                          {job.status.replace(/_/g, " ")}
+                        </Badge>
                       </div>
                     </CardHeader>
-                    <CardContent className="pt-6 space-y-6">
-                      <div className="flex items-center gap-2 text-sm text-muted-foreground">
-                        <Clock className="h-4 w-4" />
-                        {job.check_in_time ? format(new Date(job.check_in_time), "MMM dd, yyyy 'at' hh:mm a") : "N/A"}
+                    <CardContent className="pt-4 space-y-4">
+                      <div className="text-xs text-muted-foreground flex items-center gap-1">
+                        <Clock className="h-3 w-3" />
+                        {job.check_in_time ? format(new Date(job.check_in_time), "MMM dd, hh:mm a") : "N/A"}
                       </div>
 
-                      <div>
-                        <h4 className="font-semibold mb-2 text-xs uppercase text-muted-foreground tracking-wide">Services</h4>
-                        <div className="flex flex-wrap gap-2">
-                          {jobServices.map((service: any, idx: number) => (
-                            <Badge key={idx} variant="outline" className="bg-background">
-                              {service.name}
-                            </Badge>
-                          ))}
-                        </div>
+                      <div className="flex flex-wrap gap-1">
+                        {jobServices.map((service: any, idx: number) => (
+                          <Badge key={idx} variant="outline" className="text-xs">
+                            {service.name}
+                          </Badge>
+                        ))}
                       </div>
 
-                      {/* Live Progress Timeline */}
-                      <div>
-                        <h4 className="font-semibold mb-4 text-xs uppercase text-muted-foreground tracking-wide">Live Progress</h4>
-                        <div className="relative pl-8">
+                      {/* Progress */}
+                      <div className="relative">
+                        <div className="flex justify-between mb-1">
                           {stages.map((stage, index) => {
                             const isStageCompleted = index <= currentIndex;
-                            const isCurrent = index === currentIndex;
-                            
                             return (
-                              <div key={stage} className="relative pb-6 last:pb-0">
-                                {index < stages.length - 1 && (
-                                  <div className={cn(
-                                    "absolute left-[-20px] top-5 w-0.5 h-full transition-colors duration-500",
-                                    isStageCompleted ? "bg-color-green" : "bg-border"
-                                  )} />
-                                )}
-                                
-                                <div className="absolute left-[-26px] top-0">
-                                  {isStageCompleted ? (
-                                    <div className={cn(
-                                      "w-4 h-4 rounded-full flex items-center justify-center transition-all duration-500",
-                                      isCurrent ? "bg-color-green ring-4 ring-color-green/20 animate-pulse-slow" : "bg-color-green"
-                                    )}>
-                                      <CheckCircle2 className="h-3 w-3 text-white" />
-                                    </div>
-                                  ) : (
-                                    <div className="w-4 h-4 rounded-full border-2 border-border bg-background" />
-                                  )}
-                                </div>
-                                
+                              <div key={stage} className="flex flex-col items-center flex-1">
                                 <div className={cn(
-                                  "transition-all",
-                                  isStageCompleted ? "text-foreground font-medium" : "text-muted-foreground"
+                                  "w-4 h-4 rounded-full flex items-center justify-center",
+                                  isStageCompleted ? "bg-color-green" : "bg-secondary border"
                                 )}>
-                                  {stage.replace(/_/g, ' ').toUpperCase()}
-                                  {isCurrent && (
-                                    <span className="ml-2 text-xs text-color-green font-normal">(In Progress)</span>
-                                  )}
+                                  {isStageCompleted && <CheckCircle2 className="h-3 w-3 text-white" />}
                                 </div>
+                                <span className="text-[10px] text-muted-foreground mt-1 text-center">
+                                  {stage.replace(/_/g, " ")}
+                                </span>
                               </div>
                             );
                           })}
                         </div>
                       </div>
+
+                      {isCompleted && !reviewed && (
+                        <Button
+                          size="sm"
+                          variant="outline"
+                          className="w-full"
+                          onClick={() => {
+                            setSelectedJobForReview(job);
+                            setReviewDialogOpen(true);
+                          }}
+                        >
+                          <Star className="h-4 w-4 mr-1" /> Rate Service
+                        </Button>
+                      )}
                     </CardContent>
                   </Card>
                 );
               })
             )}
-          </TabsContent>
+          </div>
+        )}
 
-          {/* Invoices Tab with Payment */}
-          <TabsContent value="invoices" className="space-y-4">
-            {invoices.length === 0 ? (
-              <Card className="border">
-                <CardContent className="py-16 text-center">
-                  <FileText className="h-16 w-16 text-muted-foreground mx-auto mb-4 opacity-30" />
-                  <p className="text-muted-foreground">No invoices found</p>
-                </CardContent>
-              </Card>
-            ) : (
-              invoices.map((invoice) => (
-                <Card key={invoice.id} className="border hover:shadow-md transition-all">
-                  <CardContent className="p-6">
-                    <div className="flex flex-col md:flex-row md:items-center justify-between gap-4">
-                      <div className="flex items-center gap-4">
-                        <div className="bg-secondary rounded-lg p-3">
-                          <FileText className="h-6 w-6 text-foreground" />
-                        </div>
-                        <div>
-                          <p className="font-semibold">{invoice.invoice_number}</p>
-                          <p className="text-sm text-muted-foreground">
-                            {format(new Date(invoice.created_at), "MMM dd, yyyy")}
-                          </p>
-                        </div>
-                      </div>
-                      
-                      <div className="flex flex-col md:flex-row items-start md:items-center gap-4">
-                        <div className="text-right">
-                          <p className="text-2xl font-bold text-color-blue">₹{Number(invoice.total_amount).toLocaleString()}</p>
-                          <Badge className={cn(
-                            "mt-1",
-                            invoice.payment_status === "paid" ? "bg-color-green text-white" :
-                            invoice.payment_status === "partial" ? "bg-color-orange text-white" :
-                            "bg-color-red text-white"
-                          )}>
-                            {invoice.payment_status.toUpperCase()}
-                          </Badge>
-                        </div>
-                        
-                        <div className="flex gap-2">
-                          <Button variant="outline" size="sm" onClick={() => downloadInvoice(invoice)}>
-                            Download
-                          </Button>
-                          {invoice.payment_status !== "paid" && (
-                            <Button 
-                              size="sm" 
-                              onClick={() => initiatePayment(invoice)}
-                              disabled={paymentLoading === invoice.id}
-                              className="bg-color-green hover:bg-color-green/90"
-                            >
-                              <CreditCard className="h-4 w-4 mr-1" />
-                              {paymentLoading === invoice.id ? "Processing..." : "Pay Now"}
-                            </Button>
-                          )}
-                        </div>
-                      </div>
-                    </div>
-                  </CardContent>
-                </Card>
-              ))
-            )}
-          </TabsContent>
-
-          {/* Booking Tab */}
-          <TabsContent value="booking">
-            <Card className="border">
-              <CardHeader className="border-b bg-secondary/30">
-                <CardTitle className="flex items-center gap-2">
-                  <CalendarIcon className="h-5 w-5" />
-                  Book a Service
-                </CardTitle>
-              </CardHeader>
-              <CardContent className="pt-6 space-y-6">
-                <div className="grid md:grid-cols-2 gap-6">
-                  <div className="space-y-2">
-                    <Label className="text-sm font-medium">Select Vehicle</Label>
-                    <Select value={bookingForm.vehicle_id} onValueChange={(v) => setBookingForm({...bookingForm, vehicle_id: v})}>
-                      <SelectTrigger className="border">
-                        <SelectValue placeholder="Choose your vehicle" />
-                      </SelectTrigger>
-                      <SelectContent>
-                        {vehicles.map((v) => (
-                          <SelectItem key={v.id} value={v.id}>
-                            {v.vehicle_number} - {v.brand} {v.model}
-                          </SelectItem>
-                        ))}
-                      </SelectContent>
-                    </Select>
-                  </div>
-
-                  <div className="space-y-2">
-                    <Label className="text-sm font-medium">Select Time</Label>
-                    <Select value={bookingForm.booking_time} onValueChange={(v) => setBookingForm({...bookingForm, booking_time: v})}>
-                      <SelectTrigger className="border">
-                        <SelectValue placeholder="Choose time slot" />
-                      </SelectTrigger>
-                      <SelectContent>
-                        {timeSlots.map((slot) => (
-                          <SelectItem key={slot} value={slot}>{slot}</SelectItem>
-                        ))}
-                      </SelectContent>
-                    </Select>
-                  </div>
+        {activeTab === "book" && (
+          <div className="space-y-4">
+            <h2 className="text-lg font-bold">Book a Service</h2>
+            
+            <Card>
+              <CardContent className="pt-4 space-y-4">
+                <div className="space-y-2">
+                  <Label className="text-sm">Select Vehicle</Label>
+                  <Select value={bookingForm.vehicle_id} onValueChange={(v) => setBookingForm({...bookingForm, vehicle_id: v})}>
+                    <SelectTrigger>
+                      <SelectValue placeholder="Choose vehicle" />
+                    </SelectTrigger>
+                    <SelectContent>
+                      {vehicles.map((v) => (
+                        <SelectItem key={v.id} value={v.id}>
+                          {v.vehicle_number} - {v.brand} {v.model}
+                        </SelectItem>
+                      ))}
+                    </SelectContent>
+                  </Select>
                 </div>
 
                 <div className="space-y-2">
-                  <Label className="text-sm font-medium">Select Date</Label>
-                  <div className="border rounded-lg p-4 bg-background">
-                    <Calendar
-                      mode="single"
-                      selected={bookingForm.booking_date ? new Date(bookingForm.booking_date) : undefined}
-                      onSelect={(date) => date && setBookingForm({...bookingForm, booking_date: format(date, "yyyy-MM-dd")})}
-                      disabled={(date) => date < new Date()}
-                      className="mx-auto"
-                    />
-                  </div>
+                  <Label className="text-sm">Select Date</Label>
+                  <Calendar
+                    mode="single"
+                    selected={bookingForm.booking_date ? new Date(bookingForm.booking_date) : undefined}
+                    onSelect={(date) => date && setBookingForm({...bookingForm, booking_date: format(date, "yyyy-MM-dd"), booking_time: ""})}
+                    disabled={(date) => {
+                      const today = startOfDay(new Date());
+                      return isBefore(date, today);
+                    }}
+                    className="rounded-md border mx-auto"
+                  />
                 </div>
 
                 <div className="space-y-2">
-                  <Label className="text-sm font-medium">Select Services</Label>
-                  <div className="grid grid-cols-2 md:grid-cols-3 gap-3">
+                  <Label className="text-sm">Select Time</Label>
+                  <Select 
+                    value={bookingForm.booking_time} 
+                    onValueChange={(v) => setBookingForm({...bookingForm, booking_time: v})}
+                    disabled={!bookingForm.booking_date}
+                  >
+                    <SelectTrigger>
+                      <SelectValue placeholder="Choose time" />
+                    </SelectTrigger>
+                    <SelectContent>
+                      {getAvailableTimeSlots().map((slot) => (
+                        <SelectItem key={slot} value={slot}>{slot}</SelectItem>
+                      ))}
+                    </SelectContent>
+                  </Select>
+                </div>
+
+                <div className="space-y-2">
+                  <Label className="text-sm">Select Services</Label>
+                  <div className="grid grid-cols-1 gap-2">
                     {services.map((service) => {
                       const isSelected = bookingForm.services.some(s => s.id === service.id);
                       return (
@@ -600,16 +654,24 @@ const CustomerPortal = () => {
                             if (isSelected) {
                               setBookingForm({...bookingForm, services: bookingForm.services.filter(s => s.id !== service.id)});
                             } else {
-                              setBookingForm({...bookingForm, services: [...bookingForm.services, { id: service.id, name: service.name, price: service.base_price, lifecycle_stages: service.lifecycle_stages }]});
+                              setBookingForm({...bookingForm, services: [...bookingForm.services, { 
+                                id: service.id, 
+                                name: service.name, 
+                                price: service.base_price,
+                                lifecycle_stages: service.lifecycle_stages
+                              }]});
                             }
                           }}
                           className={cn(
-                            "p-4 rounded-lg border cursor-pointer transition-all",
-                            isSelected ? "border-foreground bg-foreground/5" : "border-border hover:border-foreground/50"
+                            "p-3 rounded-lg border cursor-pointer transition-all flex justify-between items-center",
+                            isSelected ? "border-foreground bg-foreground/5" : "border-border"
                           )}
                         >
-                          <p className="font-medium text-sm">{service.name}</p>
-                          <p className="text-color-blue font-semibold">₹{service.base_price}</p>
+                          <div>
+                            <p className="font-medium text-sm">{service.name}</p>
+                            <p className="text-xs text-muted-foreground">{service.duration_minutes} mins</p>
+                          </div>
+                          <p className="font-bold text-color-blue">₹{service.base_price}</p>
                         </div>
                       );
                     })}
@@ -620,19 +682,191 @@ const CustomerPortal = () => {
                   onClick={createBooking}
                   disabled={!bookingForm.vehicle_id || !bookingForm.booking_date || !bookingForm.booking_time || bookingForm.services.length === 0}
                   className="w-full"
-                  size="lg"
                 >
                   Confirm Booking
                 </Button>
               </CardContent>
             </Card>
-          </TabsContent>
-        </Tabs>
+          </div>
+        )}
+
+        {activeTab === "invoices" && (
+          <div className="space-y-4">
+            <h2 className="text-lg font-bold">Invoices</h2>
+            {invoices.length === 0 ? (
+              <Card className="p-8 text-center">
+                <FileText className="h-12 w-12 text-muted-foreground mx-auto mb-2 opacity-30" />
+                <p className="text-muted-foreground">No invoices yet</p>
+              </Card>
+            ) : (
+              invoices.map((invoice) => (
+                <Card key={invoice.id}>
+                  <CardContent className="p-4">
+                    <div className="flex items-center justify-between mb-3">
+                      <div>
+                        <p className="font-semibold">{invoice.invoice_number}</p>
+                        <p className="text-xs text-muted-foreground">
+                          {format(new Date(invoice.created_at), "MMM dd, yyyy")}
+                        </p>
+                      </div>
+                      <Badge className={cn(
+                        invoice.payment_status === "paid" ? "bg-color-green text-white" :
+                        invoice.payment_status === "partial" ? "bg-color-orange text-white" :
+                        "bg-color-red text-white"
+                      )}>
+                        {invoice.payment_status}
+                      </Badge>
+                    </div>
+                    
+                    <p className="text-2xl font-bold text-color-blue mb-3">
+                      ₹{Number(invoice.total_amount).toLocaleString()}
+                    </p>
+                    
+                    <div className="flex gap-2">
+                      <Button variant="outline" size="sm" className="flex-1" onClick={() => downloadInvoice(invoice)}>
+                        Download
+                      </Button>
+                      {invoice.payment_status !== "paid" && (
+                        <Button 
+                          size="sm" 
+                          className="flex-1 bg-color-green hover:bg-color-green/90"
+                          onClick={() => initiatePayment(invoice)}
+                          disabled={paymentLoading === invoice.id}
+                        >
+                          <CreditCard className="h-4 w-4 mr-1" />
+                          Pay
+                        </Button>
+                      )}
+                    </div>
+                  </CardContent>
+                </Card>
+              ))
+            )}
+          </div>
+        )}
+
+        {activeTab === "vehicles" && (
+          <div className="space-y-4">
+            <div className="flex items-center justify-between">
+              <h2 className="text-lg font-bold">My Vehicles</h2>
+              {vehicles.length > 0 && (
+                <Button size="sm" variant="outline" onClick={() => setVehicleDialogOpen(true)}>
+                  <Plus className="h-4 w-4 mr-1" /> Add
+                </Button>
+              )}
+            </div>
+            
+            {vehicles.length === 0 ? (
+              <Card className="p-8 text-center">
+                <Car className="h-12 w-12 text-muted-foreground mx-auto mb-2 opacity-30" />
+                <p className="text-muted-foreground">No vehicles added</p>
+              </Card>
+            ) : (
+              vehicles.map((vehicle) => (
+                <Card key={vehicle.id}>
+                  <CardContent className="p-4">
+                    <div className="flex items-center gap-3">
+                      <div className="bg-secondary rounded-lg p-3">
+                        <Car className="h-6 w-6" />
+                      </div>
+                      <div className="flex-1">
+                        <p className="font-semibold">{vehicle.vehicle_number}</p>
+                        <p className="text-sm text-muted-foreground">
+                          {vehicle.brand} {vehicle.model}
+                        </p>
+                        <div className="flex gap-2 mt-1">
+                          <Badge variant="outline" className="capitalize text-xs">
+                            {vehicle.vehicle_type}
+                          </Badge>
+                          {vehicle.color && (
+                            <Badge variant="outline" className="text-xs">
+                              {vehicle.color}
+                            </Badge>
+                          )}
+                        </div>
+                      </div>
+                    </div>
+                  </CardContent>
+                </Card>
+              ))
+            )}
+
+            {/* Services List */}
+            <h2 className="text-lg font-bold pt-4">Available Services</h2>
+            <div className="grid gap-2">
+              {services.map((service) => (
+                <Card key={service.id}>
+                  <CardContent className="p-3 flex justify-between items-center">
+                    <div>
+                      <p className="font-medium text-sm">{service.name}</p>
+                      <p className="text-xs text-muted-foreground">{service.duration_minutes} mins</p>
+                    </div>
+                    <p className="font-bold text-color-blue">₹{service.base_price}</p>
+                  </CardContent>
+                </Card>
+              ))}
+            </div>
+          </div>
+        )}
+      </div>
+
+      {/* Mobile Bottom Navigation */}
+      <div className="fixed bottom-0 left-0 right-0 bg-background border-t md:hidden z-50">
+        <div className="grid grid-cols-5 gap-1 p-2">
+          {[
+            { id: "home", icon: Home, label: "Home" },
+            { id: "jobs", icon: Package, label: "Jobs" },
+            { id: "book", icon: CalendarIcon, label: "Book" },
+            { id: "invoices", icon: FileText, label: "Bills" },
+            { id: "vehicles", icon: Car, label: "More" },
+          ].map((tab) => (
+            <button
+              key={tab.id}
+              onClick={() => setActiveTab(tab.id)}
+              className={cn(
+                "flex flex-col items-center py-2 rounded-lg transition-colors",
+                activeTab === tab.id ? "bg-foreground text-background" : "text-muted-foreground"
+              )}
+            >
+              <tab.icon className="h-5 w-5" />
+              <span className="text-[10px] mt-1">{tab.label}</span>
+            </button>
+          ))}
+        </div>
+      </div>
+
+      {/* Desktop Tabs */}
+      <div className="hidden md:block fixed top-16 left-0 right-0 bg-background border-b z-40">
+        <div className="container mx-auto px-4">
+          <div className="flex gap-4">
+            {[
+              { id: "home", icon: Home, label: "Home" },
+              { id: "jobs", icon: Package, label: "Job Cards" },
+              { id: "book", icon: CalendarIcon, label: "Book Service" },
+              { id: "invoices", icon: FileText, label: "Invoices" },
+              { id: "vehicles", icon: Car, label: "Vehicles & Services" },
+            ].map((tab) => (
+              <button
+                key={tab.id}
+                onClick={() => setActiveTab(tab.id)}
+                className={cn(
+                  "flex items-center gap-2 py-3 px-4 border-b-2 transition-colors",
+                  activeTab === tab.id 
+                    ? "border-foreground text-foreground font-medium" 
+                    : "border-transparent text-muted-foreground hover:text-foreground"
+                )}
+              >
+                <tab.icon className="h-4 w-4" />
+                <span>{tab.label}</span>
+              </button>
+            ))}
+          </div>
+        </div>
       </div>
 
       {/* Review Dialog */}
       <Dialog open={reviewDialogOpen} onOpenChange={setReviewDialogOpen}>
-        <DialogContent className="border">
+        <DialogContent className="max-w-sm mx-4">
           <DialogHeader>
             <DialogTitle className="flex items-center gap-2">
               <Star className="h-5 w-5 text-color-yellow" />
@@ -642,7 +876,7 @@ const CustomerPortal = () => {
           <div className="space-y-4">
             <div className="space-y-2">
               <Label>Rating</Label>
-              <div className="flex gap-2">
+              <div className="flex gap-2 justify-center">
                 {[1, 2, 3, 4, 5].map((star) => (
                   <button
                     key={star}
@@ -651,7 +885,7 @@ const CustomerPortal = () => {
                   >
                     <Star
                       className={cn(
-                        "h-8 w-8 transition-colors",
+                        "h-10 w-10 transition-colors",
                         star <= reviewForm.rating ? "fill-color-yellow text-color-yellow" : "text-muted-foreground"
                       )}
                     />
@@ -665,12 +899,80 @@ const CustomerPortal = () => {
                 placeholder="Share your experience..."
                 value={reviewForm.feedback}
                 onChange={(e) => setReviewForm({...reviewForm, feedback: e.target.value})}
-                className="border"
               />
             </div>
             <Button onClick={submitReview} className="w-full">
-              <MessageSquare className="h-4 w-4 mr-2" />
               Submit Review
+            </Button>
+          </div>
+        </DialogContent>
+      </Dialog>
+
+      {/* Add Vehicle Dialog */}
+      <Dialog open={vehicleDialogOpen} onOpenChange={setVehicleDialogOpen}>
+        <DialogContent className="max-w-sm mx-4">
+          <DialogHeader>
+            <DialogTitle>Add Vehicle</DialogTitle>
+          </DialogHeader>
+          <div className="space-y-4">
+            <div className="space-y-2">
+              <Label>Vehicle Number *</Label>
+              <Input
+                placeholder="e.g., KA01AB1234"
+                value={vehicleForm.vehicle_number}
+                onChange={(e) => setVehicleForm({...vehicleForm, vehicle_number: e.target.value.toUpperCase()})}
+              />
+            </div>
+            <div className="space-y-2">
+              <Label>Vehicle Type</Label>
+              <Select 
+                value={vehicleForm.vehicle_type} 
+                onValueChange={(v: any) => setVehicleForm({...vehicleForm, vehicle_type: v})}
+              >
+                <SelectTrigger>
+                  <SelectValue />
+                </SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="hatchback">Hatchback</SelectItem>
+                  <SelectItem value="sedan">Sedan</SelectItem>
+                  <SelectItem value="suv">SUV</SelectItem>
+                  <SelectItem value="luxury">Luxury</SelectItem>
+                  <SelectItem value="bike">Bike</SelectItem>
+                </SelectContent>
+              </Select>
+            </div>
+            <div className="grid grid-cols-2 gap-3">
+              <div className="space-y-2">
+                <Label>Brand</Label>
+                <Input
+                  placeholder="e.g., Toyota"
+                  value={vehicleForm.brand}
+                  onChange={(e) => setVehicleForm({...vehicleForm, brand: e.target.value})}
+                />
+              </div>
+              <div className="space-y-2">
+                <Label>Model</Label>
+                <Input
+                  placeholder="e.g., Camry"
+                  value={vehicleForm.model}
+                  onChange={(e) => setVehicleForm({...vehicleForm, model: e.target.value})}
+                />
+              </div>
+            </div>
+            <div className="space-y-2">
+              <Label>Color</Label>
+              <Input
+                placeholder="e.g., White"
+                value={vehicleForm.color}
+                onChange={(e) => setVehicleForm({...vehicleForm, color: e.target.value})}
+              />
+            </div>
+            <Button 
+              onClick={addVehicle} 
+              className="w-full"
+              disabled={!vehicleForm.vehicle_number}
+            >
+              Add Vehicle
             </Button>
           </div>
         </DialogContent>
