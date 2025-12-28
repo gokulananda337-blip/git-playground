@@ -12,7 +12,7 @@ import { Calendar } from "@/components/ui/calendar";
 import { useToast } from "@/hooks/use-toast";
 import { supabase } from "@/integrations/supabase/client";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
-import { Plus, Calendar as CalendarIcon, Clock, User, Car, Filter } from "lucide-react";
+import { Plus, Calendar as CalendarIcon, Clock, User, Car, Filter, FileText, Activity } from "lucide-react";
 import { format } from "date-fns";
 
 const Bookings = () => {
@@ -41,7 +41,8 @@ const Bookings = () => {
         .select(`
           *,
           customers (name, phone),
-          vehicles (vehicle_number, vehicle_type, brand, model)
+          vehicles (vehicle_number, vehicle_type, brand, model),
+          job_cards (id, status)
         `)
         .order("booking_date", { ascending: false })
         .order("booking_time", { ascending: false });
@@ -182,11 +183,91 @@ const Bookings = () => {
     cancelled: "bg-red-500"
   };
 
+  const jobStatusColors: Record<string, string> = {
+    check_in: "bg-gray-500",
+    pre_wash: "bg-blue-400",
+    foam_wash: "bg-cyan-500",
+    interior: "bg-indigo-500",
+    polishing: "bg-purple-500",
+    qc: "bg-orange-500",
+    completed: "bg-green-500",
+    delivered: "bg-emerald-600"
+  };
+
+  const jobStatusLabels: Record<string, string> = {
+    check_in: "Check In",
+    pre_wash: "Pre Wash",
+    foam_wash: "Foam Wash",
+    interior: "Interior",
+    polishing: "Polishing",
+    qc: "Quality Check",
+    completed: "Completed",
+    delivered: "Delivered"
+  };
+
   const timeSlots = [
     "08:00", "08:30", "09:00", "09:30", "10:00", "10:30", "11:00", "11:30",
     "12:00", "12:30", "13:00", "13:30", "14:00", "14:30", "15:00", "15:30",
     "16:00", "16:30", "17:00", "17:30", "18:00", "18:30", "19:00"
   ];
+
+  const generateInvoice = useMutation({
+    mutationFn: async (booking: any) => {
+      const { data: { user } } = await supabase.auth.getUser();
+      if (!user) throw new Error("Not authenticated");
+
+      // Check if invoice already exists
+      const { data: existingInvoice } = await supabase
+        .from("invoices")
+        .select("id")
+        .eq("booking_id", booking.id)
+        .maybeSingle();
+
+      if (existingInvoice) {
+        navigate(`/invoices`);
+        return;
+      }
+
+      // Generate invoice number
+      const { data: lastInvoice } = await supabase
+        .from("invoices")
+        .select("invoice_number")
+        .order("created_at", { ascending: false })
+        .limit(1)
+        .maybeSingle();
+
+      const nextNumber = lastInvoice 
+        ? parseInt(lastInvoice.invoice_number.replace("INV-", "")) + 1 
+        : 1001;
+
+      const services = Array.isArray(booking.services) ? booking.services : [];
+      const subtotal = services.reduce((sum: number, s: any) => sum + (Number(s.price) || 0), 0);
+      const taxAmount = subtotal * 0.18; // 18% GST
+      const totalAmount = subtotal + taxAmount;
+
+      const { error } = await supabase.from("invoices").insert({
+        user_id: user.id,
+        booking_id: booking.id,
+        customer_id: booking.customer_id,
+        invoice_number: `INV-${nextNumber}`,
+        items: services,
+        subtotal,
+        tax_amount: taxAmount,
+        total_amount: totalAmount,
+        payment_status: "unpaid"
+      });
+
+      if (error) throw error;
+    },
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ["invoices"] });
+      toast({ title: "Invoice generated successfully" });
+      navigate("/invoices");
+    },
+    onError: (error: any) => {
+      toast({ title: "Error generating invoice", description: error.message, variant: "destructive" });
+    }
+  });
 
   return (
     <DashboardLayout>
@@ -426,10 +507,16 @@ const Bookings = () => {
                     <CardContent className="p-4">
                       <div className="flex items-start justify-between">
                         <div className="space-y-3 flex-1">
-                          <div className="flex items-center gap-3">
+                          <div className="flex items-center gap-3 flex-wrap">
                             <Badge className={`${statusColors[booking.status]} text-white capitalize`}>
                               {booking.status.replace("_", " ")}
                             </Badge>
+                            {booking.job_cards?.[0] && (
+                              <Badge className={`${jobStatusColors[booking.job_cards[0].status]} text-white`}>
+                                <Activity className="h-3 w-3 mr-1" />
+                                {jobStatusLabels[booking.job_cards[0].status]}
+                              </Badge>
+                            )}
                             <div className="flex items-center gap-2 text-sm text-muted-foreground">
                               <CalendarIcon className="h-4 w-4" />
                               {format(new Date(booking.booking_date), "MMM dd, yyyy")}
@@ -490,6 +577,18 @@ const Bookings = () => {
                           >
                             Manage Job
                           </Button>
+                          {booking.status === "completed" && (
+                            <Button
+                              size="sm"
+                              variant="default"
+                              className="gap-1"
+                              onClick={() => generateInvoice.mutate(booking)}
+                              disabled={generateInvoice.isPending}
+                            >
+                              <FileText className="h-3 w-3" />
+                              Generate Invoice
+                            </Button>
+                          )}
                         </div>
                       </div>
                     </CardContent>
