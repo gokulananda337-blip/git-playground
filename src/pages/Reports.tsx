@@ -6,10 +6,10 @@ import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover
 import { Calendar } from "@/components/ui/calendar";
 import { useQuery } from "@tanstack/react-query";
 import { supabase } from "@/integrations/supabase/client";
-import { BarChart, Bar, LineChart, Line, PieChart, Pie, Cell, XAxis, YAxis, CartesianGrid, Tooltip, Legend, ResponsiveContainer, AreaChart, Area } from "recharts";
-import { Download, TrendingUp, Users, Car, DollarSign, Calendar as CalendarIcon, Package, Activity, TrendingDown, UserCheck } from "lucide-react";
+import { BarChart, Bar, LineChart, Line, PieChart, Pie, Cell, XAxis, YAxis, CartesianGrid, Tooltip, Legend, ResponsiveContainer, AreaChart, Area, RadialBarChart, RadialBar } from "recharts";
+import { Download, TrendingUp, Users, Car, DollarSign, Calendar as CalendarIcon, Package, Activity, TrendingDown, UserCheck, Star, Repeat, PieChart as PieChartIcon, BarChart3, Wallet } from "lucide-react";
 import { useState } from "react";
-import { format, subDays } from "date-fns";
+import { format, subDays, subMonths, startOfMonth, endOfMonth } from "date-fns";
 
 const Reports = () => {
   const [dateRange, setDateRange] = useState({ from: subDays(new Date(), 30), to: new Date() });
@@ -32,16 +32,16 @@ const Reports = () => {
       const { data: { user } } = await supabase.auth.getUser();
       if (!user) throw new Error("Not authenticated");
 
-      const [customers, vehicles, bookings, invoices, services, jobCards, expenses] = await Promise.all([
-        supabase.from("customers").select("id", { count: "exact" }).eq("user_id", user.id),
+      const [customers, vehicles, bookings, invoices, services, jobCards, expenses, reviews] = await Promise.all([
+        supabase.from("customers").select("id, created_at", { count: "exact" }).eq("user_id", user.id),
         supabase.from("vehicles").select("id", { count: "exact" }).eq("user_id", user.id),
         supabase.from("bookings")
-          .select("id, status, booking_date", { count: "exact" })
+          .select("id, status, booking_date, customer_id", { count: "exact" })
           .eq("user_id", user.id)
           .gte("booking_date", format(dateRange.from, "yyyy-MM-dd"))
           .lte("booking_date", format(dateRange.to, "yyyy-MM-dd")),
         supabase.from("invoices")
-          .select("total_amount, payment_status, created_at")
+          .select("total_amount, payment_status, created_at, customer_id")
           .eq("user_id", user.id)
           .gte("created_at", dateRange.from.toISOString())
           .lte("created_at", dateRange.to.toISOString()),
@@ -55,7 +55,12 @@ const Reports = () => {
           .select("amount, expense_date, category")
           .eq("user_id", user.id)
           .gte("expense_date", format(dateRange.from, "yyyy-MM-dd"))
-          .lte("expense_date", format(dateRange.to, "yyyy-MM-dd"))
+          .lte("expense_date", format(dateRange.to, "yyyy-MM-dd")),
+        supabase.from("reviews")
+          .select("rating, created_at")
+          .eq("user_id", user.id)
+          .gte("created_at", dateRange.from.toISOString())
+          .lte("created_at", dateRange.to.toISOString())
       ]);
 
       const totalRevenue = invoices.data?.reduce((sum, inv) => sum + Number(inv.total_amount), 0) || 0;
@@ -65,6 +70,21 @@ const Reports = () => {
 
       const avgTicketSize = invoices.data?.length ? totalRevenue / invoices.data.length : 0;
       const conversionRate = bookings.data?.length ? (bookings.data.filter(b => b.status === "completed").length / bookings.data.length) * 100 : 0;
+      
+      // Calculate average rating
+      const avgRating = reviews.data?.length 
+        ? reviews.data.reduce((sum, r) => sum + r.rating, 0) / reviews.data.length 
+        : 0;
+
+      // Calculate repeat customers (customers with more than 1 booking)
+      const customerBookings: Record<string, number> = {};
+      bookings.data?.forEach(b => {
+        customerBookings[b.customer_id] = (customerBookings[b.customer_id] || 0) + 1;
+      });
+      const repeatCustomers = Object.values(customerBookings).filter(c => c > 1).length;
+      const retentionRate = Object.keys(customerBookings).length > 0 
+        ? (repeatCustomers / Object.keys(customerBookings).length) * 100 
+        : 0;
 
       return {
         totalCustomers: customers.count || 0,
@@ -81,35 +101,12 @@ const Reports = () => {
         conversionRate,
         activeServices: services.data?.filter(s => s.is_active).length || 0,
         totalServices: services.count || 0,
-        inProgressJobs: jobCards.data?.filter(j => j.status !== "completed" && j.status !== "delivered").length || 0
+        inProgressJobs: jobCards.data?.filter(j => j.status !== "completed" && j.status !== "delivered").length || 0,
+        avgRating,
+        totalReviews: reviews.data?.length || 0,
+        repeatCustomers,
+        retentionRate
       };
-    }
-  });
-
-  const { data: revenueByDepartment } = useQuery({
-    queryKey: ["revenue-by-department", dateRange],
-    queryFn: async () => {
-      const { data: { user } } = await supabase.auth.getUser();
-      if (!user) return [];
-
-      const { data: branches } = await supabase.from("branches").select("id, name").eq("user_id", user.id);
-      if (!branches) return [];
-
-      const revenueData = await Promise.all(
-        branches.map(async (branch) => {
-          const { data: invoices } = await supabase
-            .from("invoices")
-            .select("total_amount")
-            .eq("user_id", user.id)
-            .gte("created_at", dateRange.from.toISOString())
-            .lte("created_at", dateRange.to.toISOString());
-
-          const total = invoices?.reduce((sum, inv) => sum + Number(inv.total_amount), 0) || 0;
-          return { name: branch.name, revenue: total };
-        })
-      );
-
-      return revenueData;
     }
   });
 
@@ -125,12 +122,13 @@ const Reports = () => {
 
       const grouped = data?.reduce((acc: any, inv) => {
         const date = format(new Date(inv.created_at), "MMM dd");
-        if (!acc[date]) acc[date] = { date, paid: 0, pending: 0 };
+        if (!acc[date]) acc[date] = { date, paid: 0, pending: 0, total: 0 };
         if (inv.payment_status === "paid") {
           acc[date].paid += Number(inv.total_amount);
         } else {
           acc[date].pending += Number(inv.total_amount);
         }
+        acc[date].total += Number(inv.total_amount);
         return acc;
       }, {});
 
@@ -157,7 +155,119 @@ const Reports = () => {
         }
       });
 
-      return Object.entries(serviceCounts).map(([name, value]) => ({ name, value }));
+      return Object.entries(serviceCounts)
+        .map(([name, value]) => ({ name, value }))
+        .sort((a: any, b: any) => b.value - a.value)
+        .slice(0, 8);
+    }
+  });
+
+  const { data: expenseBreakdown } = useQuery({
+    queryKey: ["expense-breakdown", dateRange],
+    queryFn: async () => {
+      const { data: { user } } = await supabase.auth.getUser();
+      if (!user) return [];
+
+      const { data } = await supabase
+        .from("expenses")
+        .select("category, amount")
+        .eq("user_id", user.id)
+        .gte("expense_date", format(dateRange.from, "yyyy-MM-dd"))
+        .lte("expense_date", format(dateRange.to, "yyyy-MM-dd"));
+
+      const categoryTotals: Record<string, number> = {};
+      data?.forEach(exp => {
+        categoryTotals[exp.category] = (categoryTotals[exp.category] || 0) + Number(exp.amount);
+      });
+
+      return Object.entries(categoryTotals)
+        .map(([name, value]) => ({ name, value }))
+        .sort((a, b) => b.value - a.value);
+    }
+  });
+
+  const { data: customerRetention } = useQuery({
+    queryKey: ["customer-retention", dateRange],
+    queryFn: async () => {
+      const { data: { user } } = await supabase.auth.getUser();
+      if (!user) return [];
+
+      // Get last 6 months of data
+      const months = [];
+      for (let i = 5; i >= 0; i--) {
+        const monthStart = startOfMonth(subMonths(new Date(), i));
+        const monthEnd = endOfMonth(subMonths(new Date(), i));
+        months.push({ start: monthStart, end: monthEnd, label: format(monthStart, "MMM yyyy") });
+      }
+
+      const retentionData = await Promise.all(
+        months.map(async ({ start, end, label }) => {
+          const { data: bookings } = await supabase
+            .from("bookings")
+            .select("customer_id")
+            .eq("user_id", user.id)
+            .gte("booking_date", format(start, "yyyy-MM-dd"))
+            .lte("booking_date", format(end, "yyyy-MM-dd"));
+
+          const uniqueCustomers = new Set(bookings?.map(b => b.customer_id) || []);
+          const customerBookings: Record<string, number> = {};
+          bookings?.forEach(b => {
+            customerBookings[b.customer_id] = (customerBookings[b.customer_id] || 0) + 1;
+          });
+          const repeatCustomers = Object.values(customerBookings).filter(c => c > 1).length;
+
+          return {
+            month: label,
+            newCustomers: uniqueCustomers.size,
+            repeatCustomers,
+            retention: uniqueCustomers.size > 0 ? ((repeatCustomers / uniqueCustomers.size) * 100).toFixed(1) : 0
+          };
+        })
+      );
+
+      return retentionData;
+    }
+  });
+
+  const { data: serviceTrends } = useQuery({
+    queryKey: ["service-trends", dateRange],
+    queryFn: async () => {
+      const { data: { user } } = await supabase.auth.getUser();
+      if (!user) return [];
+
+      // Get last 4 weeks
+      const weeks = [];
+      for (let i = 3; i >= 0; i--) {
+        const weekStart = subDays(new Date(), (i + 1) * 7);
+        const weekEnd = subDays(new Date(), i * 7);
+        weeks.push({ start: weekStart, end: weekEnd, label: `Week ${4 - i}` });
+      }
+
+      const trendData = await Promise.all(
+        weeks.map(async ({ start, end, label }) => {
+          const { data: bookings } = await supabase
+            .from("bookings")
+            .select("services")
+            .eq("user_id", user.id)
+            .gte("booking_date", format(start, "yyyy-MM-dd"))
+            .lte("booking_date", format(end, "yyyy-MM-dd"));
+
+          let totalServices = 0;
+          bookings?.forEach(b => {
+            if (Array.isArray(b.services)) {
+              totalServices += b.services.length;
+            }
+          });
+
+          return {
+            week: label,
+            bookings: bookings?.length || 0,
+            services: totalServices
+          };
+        })
+      );
+
+      return trendData;
     }
   });
 
@@ -194,7 +304,30 @@ const Reports = () => {
     }
   });
 
-  const COLORS = ["hsl(var(--primary))", "hsl(var(--accent))", "hsl(var(--success))", "#8884d8", "#82ca9d", "#ffc658"];
+  const { data: ratingDistribution } = useQuery({
+    queryKey: ["rating-distribution", dateRange],
+    queryFn: async () => {
+      const { data: { user } } = await supabase.auth.getUser();
+      if (!user) return [];
+
+      const { data } = await supabase
+        .from("reviews")
+        .select("rating")
+        .eq("user_id", user.id)
+        .gte("created_at", dateRange.from.toISOString())
+        .lte("created_at", dateRange.to.toISOString());
+
+      const distribution = [1, 2, 3, 4, 5].map(star => ({
+        rating: `${star} Star`,
+        count: data?.filter(r => r.rating === star).length || 0,
+        fill: star >= 4 ? "hsl(var(--success))" : star >= 3 ? "hsl(var(--warning))" : "hsl(var(--destructive))"
+      }));
+
+      return distribution;
+    }
+  });
+
+  const COLORS = ["hsl(var(--primary))", "hsl(var(--accent))", "hsl(var(--success))", "#8884d8", "#82ca9d", "#ffc658", "#ff7c43", "#a855f7"];
 
   return (
     <DashboardLayout>
@@ -202,7 +335,7 @@ const Reports = () => {
         <div className="flex justify-between items-start">
           <div>
             <h1 className="text-3xl font-bold">Reports & Analytics</h1>
-            <p className="text-muted-foreground">Business insights and performance metrics</p>
+            <p className="text-muted-foreground">Comprehensive business insights and performance metrics</p>
           </div>
           <Button className="gap-2 shadow-md hover:shadow-lg">
             <Download className="h-4 w-4" />
@@ -250,10 +383,10 @@ const Reports = () => {
               <DollarSign className="h-5 w-5 text-primary" />
             </CardHeader>
             <CardContent>
-              <div className="text-3xl font-bold text-primary">₹{stats?.totalRevenue.toFixed(2)}</div>
+              <div className="text-3xl font-bold text-primary">₹{stats?.totalRevenue?.toLocaleString()}</div>
               <div className="flex items-center gap-2 mt-2">
-                <div className="text-xs text-success font-semibold">₹{stats?.paidRevenue.toFixed(2)} Paid</div>
-                <div className="text-xs text-warning">₹{stats?.pendingRevenue.toFixed(2)} Pending</div>
+                <div className="text-xs text-success font-semibold">₹{stats?.paidRevenue?.toLocaleString()} Paid</div>
+                <div className="text-xs text-warning">₹{stats?.pendingRevenue?.toLocaleString()} Pending</div>
               </div>
             </CardContent>
           </Card>
@@ -261,10 +394,10 @@ const Reports = () => {
           <Card className="shadow-md hover:shadow-lg transition-all border-l-4 border-l-destructive">
             <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
               <CardTitle className="text-sm font-medium">Total Expenses</CardTitle>
-              <TrendingDown className="h-5 w-5 text-destructive" />
+              <Wallet className="h-5 w-5 text-destructive" />
             </CardHeader>
             <CardContent>
-              <div className="text-3xl font-bold text-destructive">₹{stats?.totalExpenses.toFixed(2)}</div>
+              <div className="text-3xl font-bold text-destructive">₹{stats?.totalExpenses?.toLocaleString()}</div>
               <p className="text-xs text-muted-foreground mt-2">Business expenses</p>
             </CardContent>
           </Card>
@@ -275,36 +408,36 @@ const Reports = () => {
               <TrendingUp className="h-5 w-5 text-success" />
             </CardHeader>
             <CardContent>
-              <div className="text-3xl font-bold text-success">₹{stats?.netProfit.toFixed(2)}</div>
+              <div className="text-3xl font-bold text-success">₹{stats?.netProfit?.toLocaleString()}</div>
               <p className="text-xs text-muted-foreground mt-2">Revenue - Expenses</p>
             </CardContent>
           </Card>
 
           <Card className="shadow-md hover:shadow-lg transition-all border-l-4 border-l-accent">
             <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
-              <CardTitle className="text-sm font-medium">Avg Ticket Size</CardTitle>
-              <Activity className="h-5 w-5 text-accent" />
+              <CardTitle className="text-sm font-medium">Avg Rating</CardTitle>
+              <Star className="h-5 w-5 text-accent" />
             </CardHeader>
             <CardContent>
-              <div className="text-3xl font-bold text-accent">₹{stats?.avgTicketSize.toFixed(0)}</div>
-              <p className="text-xs text-muted-foreground mt-2">Per invoice average</p>
+              <div className="text-3xl font-bold text-accent">{stats?.avgRating?.toFixed(1) || "0"} ⭐</div>
+              <p className="text-xs text-muted-foreground mt-2">{stats?.totalReviews} reviews</p>
             </CardContent>
           </Card>
 
           <Card className="shadow-md hover:shadow-lg transition-all border-l-4 border-l-info">
             <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
-              <CardTitle className="text-sm font-medium">Active Jobs</CardTitle>
-              <Package className="h-5 w-5 text-info" />
+              <CardTitle className="text-sm font-medium">Retention Rate</CardTitle>
+              <Repeat className="h-5 w-5 text-info" />
             </CardHeader>
             <CardContent>
-              <div className="text-3xl font-bold text-info">{stats?.inProgressJobs}</div>
-              <p className="text-xs text-muted-foreground mt-2">In progress now</p>
+              <div className="text-3xl font-bold text-info">{stats?.retentionRate?.toFixed(0)}%</div>
+              <p className="text-xs text-muted-foreground mt-2">{stats?.repeatCustomers} repeat customers</p>
             </CardContent>
           </Card>
         </div>
 
         {/* KPI Cards - Row 2 */}
-        <div className="grid gap-4 md:grid-cols-2 lg:grid-cols-4">
+        <div className="grid gap-4 md:grid-cols-2 lg:grid-cols-5">
           <Card className="shadow-md hover:shadow-lg transition-all">
             <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
               <CardTitle className="text-sm font-medium">Total Customers</CardTitle>
@@ -335,20 +468,31 @@ const Reports = () => {
             <CardContent>
               <div className="text-2xl font-bold">{stats?.completedBookings}/{stats?.totalBookings}</div>
               <p className="text-xs text-muted-foreground flex items-center gap-2">
-                <span className="text-green-600">{stats?.completedBookings} completed</span>
-                <span className="text-red-600">{stats?.cancelledBookings} cancelled</span>
+                <span className="text-success">{stats?.completedBookings} completed</span>
+                <span className="text-destructive">{stats?.cancelledBookings} cancelled</span>
               </p>
             </CardContent>
           </Card>
 
           <Card className="shadow-md hover:shadow-lg transition-all">
             <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
-              <CardTitle className="text-sm font-medium">Services</CardTitle>
+              <CardTitle className="text-sm font-medium">Avg Ticket Size</CardTitle>
+              <Activity className="h-4 w-4 text-muted-foreground" />
+            </CardHeader>
+            <CardContent>
+              <div className="text-2xl font-bold">₹{stats?.avgTicketSize?.toFixed(0)}</div>
+              <p className="text-xs text-muted-foreground">Per invoice average</p>
+            </CardContent>
+          </Card>
+
+          <Card className="shadow-md hover:shadow-lg transition-all">
+            <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
+              <CardTitle className="text-sm font-medium">Active Jobs</CardTitle>
               <Package className="h-4 w-4 text-muted-foreground" />
             </CardHeader>
             <CardContent>
-              <div className="text-2xl font-bold">{stats?.activeServices}/{stats?.totalServices}</div>
-              <p className="text-xs text-muted-foreground">Active services</p>
+              <div className="text-2xl font-bold">{stats?.inProgressJobs}</div>
+              <p className="text-xs text-muted-foreground">In progress now</p>
             </CardContent>
           </Card>
         </div>
@@ -390,20 +534,29 @@ const Reports = () => {
           <Card className="shadow-md">
             <CardHeader className="border-b">
               <CardTitle className="flex items-center gap-2">
-                <DollarSign className="h-5 w-5 text-primary" />
-                Revenue by Department
+                <Wallet className="h-5 w-5 text-destructive" />
+                Expense Breakdown
               </CardTitle>
             </CardHeader>
             <CardContent className="pt-6">
               <ResponsiveContainer width="100%" height={320}>
-                <BarChart data={revenueByDepartment}>
-                  <CartesianGrid strokeDasharray="3 3" stroke="hsl(var(--border))" />
-                  <XAxis dataKey="name" tick={{ fontSize: 12 }} />
-                  <YAxis tick={{ fontSize: 12 }} />
-                  <Tooltip />
-                  <Legend />
-                  <Bar dataKey="revenue" fill="hsl(var(--primary))" name="Revenue (₹)" radius={[8, 8, 0, 0]} />
-                </BarChart>
+                <PieChart>
+                  <Pie
+                    data={expenseBreakdown}
+                    cx="50%"
+                    cy="50%"
+                    labelLine={false}
+                    label={({ name, percent }) => `${name}: ${(percent * 100).toFixed(0)}%`}
+                    outerRadius={100}
+                    fill="#8884d8"
+                    dataKey="value"
+                  >
+                    {expenseBreakdown?.map((entry, index) => (
+                      <Cell key={`cell-${index}`} fill={COLORS[index % COLORS.length]} />
+                    ))}
+                  </Pie>
+                  <Tooltip formatter={(value: any) => `₹${value.toLocaleString()}`} />
+                </PieChart>
               </ResponsiveContainer>
             </CardContent>
           </Card>
@@ -414,29 +567,90 @@ const Reports = () => {
           <Card className="shadow-md">
             <CardHeader className="border-b">
               <CardTitle className="flex items-center gap-2">
-                <Package className="h-5 w-5 text-primary" />
-                Service Distribution
+                <Repeat className="h-5 w-5 text-info" />
+                Customer Retention Trend
               </CardTitle>
             </CardHeader>
             <CardContent className="pt-6">
               <ResponsiveContainer width="100%" height={320}>
-                <PieChart>
-                  <Pie
-                    data={serviceData}
-                    cx="50%"
-                    cy="50%"
-                    labelLine={false}
-                    label={({ name, percent }) => `${name}: ${(percent * 100).toFixed(0)}%`}
-                    outerRadius={100}
-                    fill="#8884d8"
-                    dataKey="value"
-                  >
-                    {serviceData?.map((entry, index) => (
-                      <Cell key={`cell-${index}`} fill={COLORS[index % COLORS.length]} />
-                    ))}
-                  </Pie>
+                <BarChart data={customerRetention}>
+                  <CartesianGrid strokeDasharray="3 3" stroke="hsl(var(--border))" />
+                  <XAxis dataKey="month" tick={{ fontSize: 11 }} />
+                  <YAxis tick={{ fontSize: 12 }} />
                   <Tooltip />
-                </PieChart>
+                  <Legend />
+                  <Bar dataKey="newCustomers" fill="hsl(var(--primary))" name="New Customers" radius={[4, 4, 0, 0]} />
+                  <Bar dataKey="repeatCustomers" fill="hsl(var(--success))" name="Repeat Customers" radius={[4, 4, 0, 0]} />
+                </BarChart>
+              </ResponsiveContainer>
+            </CardContent>
+          </Card>
+
+          <Card className="shadow-md">
+            <CardHeader className="border-b">
+              <CardTitle className="flex items-center gap-2">
+                <Package className="h-5 w-5 text-primary" />
+                Service Popularity
+              </CardTitle>
+            </CardHeader>
+            <CardContent className="pt-6">
+              <ResponsiveContainer width="100%" height={320}>
+                <BarChart data={serviceData} layout="vertical">
+                  <CartesianGrid strokeDasharray="3 3" stroke="hsl(var(--border))" />
+                  <XAxis type="number" tick={{ fontSize: 12 }} />
+                  <YAxis dataKey="name" type="category" tick={{ fontSize: 11 }} width={100} />
+                  <Tooltip />
+                  <Bar dataKey="value" fill="hsl(var(--primary))" name="Bookings" radius={[0, 4, 4, 0]} />
+                </BarChart>
+              </ResponsiveContainer>
+            </CardContent>
+          </Card>
+        </div>
+
+        {/* Charts Row 3 */}
+        <div className="grid gap-4 md:grid-cols-3">
+          <Card className="shadow-md">
+            <CardHeader className="border-b">
+              <CardTitle className="flex items-center gap-2">
+                <Star className="h-5 w-5 text-accent" />
+                Rating Distribution
+              </CardTitle>
+            </CardHeader>
+            <CardContent className="pt-6">
+              <ResponsiveContainer width="100%" height={280}>
+                <BarChart data={ratingDistribution} layout="vertical">
+                  <CartesianGrid strokeDasharray="3 3" stroke="hsl(var(--border))" />
+                  <XAxis type="number" tick={{ fontSize: 12 }} />
+                  <YAxis dataKey="rating" type="category" tick={{ fontSize: 11 }} width={60} />
+                  <Tooltip />
+                  <Bar dataKey="count" name="Reviews" radius={[0, 4, 4, 0]}>
+                    {ratingDistribution?.map((entry, index) => (
+                      <Cell key={`cell-${index}`} fill={entry.fill} />
+                    ))}
+                  </Bar>
+                </BarChart>
+              </ResponsiveContainer>
+            </CardContent>
+          </Card>
+
+          <Card className="shadow-md">
+            <CardHeader className="border-b">
+              <CardTitle className="flex items-center gap-2">
+                <BarChart3 className="h-5 w-5 text-primary" />
+                Weekly Service Trends
+              </CardTitle>
+            </CardHeader>
+            <CardContent className="pt-6">
+              <ResponsiveContainer width="100%" height={280}>
+                <LineChart data={serviceTrends}>
+                  <CartesianGrid strokeDasharray="3 3" stroke="hsl(var(--border))" />
+                  <XAxis dataKey="week" tick={{ fontSize: 12 }} />
+                  <YAxis tick={{ fontSize: 12 }} />
+                  <Tooltip />
+                  <Legend />
+                  <Line type="monotone" dataKey="bookings" stroke="hsl(var(--primary))" strokeWidth={2} name="Bookings" />
+                  <Line type="monotone" dataKey="services" stroke="hsl(var(--accent))" strokeWidth={2} name="Services" />
+                </LineChart>
               </ResponsiveContainer>
             </CardContent>
           </Card>
@@ -449,15 +663,15 @@ const Reports = () => {
               </CardTitle>
             </CardHeader>
             <CardContent className="pt-6">
-              <ResponsiveContainer width="100%" height={320}>
+              <ResponsiveContainer width="100%" height={280}>
                 <BarChart data={staffPerformance} layout="vertical">
                   <CartesianGrid strokeDasharray="3 3" stroke="hsl(var(--border))" />
                   <XAxis type="number" tick={{ fontSize: 12 }} />
-                  <YAxis dataKey="name" type="category" tick={{ fontSize: 11 }} width={100} />
+                  <YAxis dataKey="name" type="category" tick={{ fontSize: 11 }} width={80} />
                   <Tooltip />
                   <Legend />
-                  <Bar dataKey="completed" fill="hsl(var(--success))" name="Completed" radius={[0, 8, 8, 0]} />
-                  <Bar dataKey="total" fill="hsl(var(--muted))" name="Total Assigned" radius={[0, 8, 8, 0]} />
+                  <Bar dataKey="completed" fill="hsl(var(--success))" name="Completed" radius={[0, 4, 4, 0]} />
+                  <Bar dataKey="total" fill="hsl(var(--muted))" name="Total" radius={[0, 4, 4, 0]} />
                 </BarChart>
               </ResponsiveContainer>
             </CardContent>
