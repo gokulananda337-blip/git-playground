@@ -519,6 +519,153 @@ export type Database = {
           },
         ]
       }
+      landing_page_config: {
+        Row: {
+          address: string | null
+          business_name: string
+          created_at: string
+          description: string | null
+          email: string | null
+          enable_online_booking: boolean | null
+          facebook_url: string | null
+          features: Json | null
+          google_maps_url: string | null
+          hero_image_url: string | null
+          id: string
+          instagram_url: string | null
+          is_active: boolean | null
+          logo_url: string | null
+          phone: string | null
+          primary_color: string | null
+          slug: string | null
+          tagline: string | null
+          testimonials: Json | null
+          updated_at: string
+          user_id: string
+          whatsapp: string | null
+          working_hours: Json | null
+        }
+        Insert: {
+          address?: string | null
+          business_name?: string
+          created_at?: string
+          description?: string | null
+          email?: string | null
+          enable_online_booking?: boolean | null
+          facebook_url?: string | null
+          features?: Json | null
+          google_maps_url?: string | null
+          hero_image_url?: string | null
+          id?: string
+          instagram_url?: string | null
+          is_active?: boolean | null
+          logo_url?: string | null
+          phone?: string | null
+          primary_color?: string | null
+          slug?: string | null
+          tagline?: string | null
+          testimonials?: Json | null
+          updated_at?: string
+          user_id: string
+          whatsapp?: string | null
+          working_hours?: Json | null
+        }
+        Update: {
+          address?: string | null
+          business_name?: string
+          created_at?: string
+          description?: string | null
+          email?: string | null
+          enable_online_booking?: boolean | null
+          facebook_url?: string | null
+          features?: Json | null
+          google_maps_url?: string | null
+          hero_image_url?: string | null
+          id?: string
+          instagram_url?: string | null
+          is_active?: boolean | null
+          logo_url?: string | null
+          phone?: string | null
+          primary_color?: string | null
+          slug?: string | null
+          tagline?: string | null
+          testimonials?: Json | null
+          updated_at?: string
+          user_id?: string
+          whatsapp?: string | null
+          working_hours?: Json | null
+        }
+        Relationships: []
+      }
+      loyalty_points: {
+        Row: {
+          created_at: string
+          customer_id: string
+          id: string
+          lifetime_points: number
+          points: number
+          tier: string | null
+          updated_at: string
+          user_id: string
+        }
+        Insert: {
+          created_at?: string
+          customer_id: string
+          id?: string
+          lifetime_points?: number
+          points?: number
+          tier?: string | null
+          updated_at?: string
+          user_id: string
+        }
+        Update: {
+          created_at?: string
+          customer_id?: string
+          id?: string
+          lifetime_points?: number
+          points?: number
+          tier?: string | null
+          updated_at?: string
+          user_id?: string
+        }
+        Relationships: []
+      }
+      loyalty_transactions: {
+        Row: {
+          created_at: string
+          customer_id: string
+          description: string | null
+          id: string
+          points: number
+          reference_id: string | null
+          reference_type: string | null
+          transaction_type: string
+          user_id: string
+        }
+        Insert: {
+          created_at?: string
+          customer_id: string
+          description?: string | null
+          id?: string
+          points: number
+          reference_id?: string | null
+          reference_type?: string | null
+          transaction_type: string
+          user_id: string
+        }
+        Update: {
+          created_at?: string
+          customer_id?: string
+          description?: string | null
+          id?: string
+          points?: number
+          reference_id?: string | null
+          reference_type?: string | null
+          transaction_type?: string
+          user_id?: string
+        }
+        Relationships: []
+      }
       payment_transactions: {
         Row: {
           amount: number
