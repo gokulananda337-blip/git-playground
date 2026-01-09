@@ -7,13 +7,14 @@ import { Input } from "@/components/ui/input";
 import { useToast } from "@/hooks/use-toast";
 import { supabase } from "@/integrations/supabase/client";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
-import { Search, FileText, Download, Send, DollarSign, Building2, Edit2, Plus, Trash2 } from "lucide-react";
+import { Search, FileText, Download, Send, DollarSign, Building2, Edit2, Plus, Trash2, Percent } from "lucide-react";
 import { format } from "date-fns";
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter } from "@/components/ui/dialog";
 import { Label } from "@/components/ui/label";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import jsPDF from "jspdf";
 import { useRealtimeNotifications } from "@/hooks/use-realtime-notifications";
+import { BubblesSVG, CarSVG } from "@/components/CarWashSVG";
 
 const Invoices = () => {
   const [search, setSearch] = useState("");
@@ -22,6 +23,8 @@ const Invoices = () => {
   const [selectedInvoice, setSelectedInvoice] = useState<any>(null);
   const [paymentMethod, setPaymentMethod] = useState<string>("cash");
   const [editItems, setEditItems] = useState<any[]>([]);
+  const [editDiscount, setEditDiscount] = useState<number>(0);
+  const [editTaxRate, setEditTaxRate] = useState<number>(18);
   const { toast } = useToast();
   
   // Enable real-time notifications
@@ -94,14 +97,18 @@ const Invoices = () => {
   });
 
   const updateInvoice = useMutation({
-    mutationFn: async ({ invoiceId, items }: { invoiceId: string; items: any[] }) => {
+    mutationFn: async ({ invoiceId, items, discount, taxAmount }: { invoiceId: string; items: any[]; discount: number; taxAmount: number }) => {
       const subtotal = items.reduce((sum, item) => sum + Number(item.price), 0);
+      const totalAmount = subtotal - discount + taxAmount;
+      
       const { error } = await supabase
         .from("invoices")
         .update({
           items,
           subtotal,
-          total_amount: subtotal + (selectedInvoice.tax_amount || 0) - (selectedInvoice.discount || 0)
+          discount,
+          tax_amount: taxAmount,
+          total_amount: totalAmount
         })
         .eq("id", invoiceId);
       
@@ -120,6 +127,11 @@ const Invoices = () => {
   const openEditDialog = (invoice: any) => {
     setSelectedInvoice(invoice);
     setEditItems(Array.isArray(invoice.items) ? [...invoice.items] : []);
+    setEditDiscount(Number(invoice.discount) || 0);
+    const subtotal = (Array.isArray(invoice.items) ? invoice.items : []).reduce((sum: number, item: any) => sum + Number(item.price), 0);
+    const taxAmount = Number(invoice.tax_amount) || 0;
+    // Calculate tax rate from existing data
+    setEditTaxRate(subtotal > 0 ? Math.round((taxAmount / subtotal) * 100) : 18);
     setEditDialogOpen(true);
   };
 
@@ -326,16 +338,23 @@ const Invoices = () => {
 
   return (
     <DashboardLayout>
-      <div className="p-6 space-y-6">
-        <div className="flex justify-between items-start">
+      <div className="p-6 space-y-6 relative">
+        {/* Decorative background */}
+        <div className="absolute top-0 right-0 text-primary opacity-5 pointer-events-none">
+          <CarSVG className="w-64 h-64" />
+        </div>
+        
+        <div className="flex justify-between items-start relative z-10">
           <div>
             <h1 className="text-3xl font-bold">Invoices</h1>
             <p className="text-muted-foreground">Manage billing and payments</p>
           </div>
           {companyInfo && (
-            <Card className="p-4 bg-gradient-to-br from-primary/5 to-primary/10 border-primary/20">
+            <Card className="p-4 bg-gradient-to-br from-primary/10 to-primary/5 border-primary/20">
               <div className="flex items-start gap-3">
-                <Building2 className="h-5 w-5 text-primary mt-1" />
+                <div className="p-2 rounded-lg bg-primary/20">
+                  <Building2 className="h-5 w-5 text-primary" />
+                </div>
                 <div className="text-sm space-y-1">
                   <p className="font-semibold text-base">{companyInfo.name}</p>
                   {companyInfo.phone && <p className="text-xs text-muted-foreground">{companyInfo.phone}</p>}
@@ -541,17 +560,77 @@ const Invoices = () => {
                 <Plus className="h-4 w-4 mr-2" />
                 Add Item
               </Button>
-              <div className="pt-4 border-t">
-                <p className="text-right text-sm text-muted-foreground">Subtotal</p>
-                <p className="text-right text-2xl font-bold text-primary">
-                  ₹{editItems.reduce((sum, item) => sum + Number(item.price), 0).toFixed(2)}
-                </p>
+              
+              {/* Discount and Tax */}
+              <div className="grid grid-cols-2 gap-4 pt-4 border-t">
+                <div className="space-y-2">
+                  <Label className="flex items-center gap-2">
+                    <DollarSign className="h-4 w-4" /> Discount (₹)
+                  </Label>
+                  <Input
+                    type="number"
+                    value={editDiscount}
+                    onChange={(e) => setEditDiscount(parseFloat(e.target.value) || 0)}
+                    placeholder="0"
+                  />
+                </div>
+                <div className="space-y-2">
+                  <Label className="flex items-center gap-2">
+                    <Percent className="h-4 w-4" /> Tax Rate (%)
+                  </Label>
+                  <Input
+                    type="number"
+                    value={editTaxRate}
+                    onChange={(e) => setEditTaxRate(parseFloat(e.target.value) || 0)}
+                    placeholder="18"
+                  />
+                </div>
+              </div>
+              
+              {/* Totals */}
+              <div className="pt-4 border-t space-y-2">
+                {(() => {
+                  const subtotal = editItems.reduce((sum, item) => sum + Number(item.price), 0);
+                  const taxAmount = subtotal * (editTaxRate / 100);
+                  const total = subtotal - editDiscount + taxAmount;
+                  return (
+                    <>
+                      <div className="flex justify-between text-sm">
+                        <span className="text-muted-foreground">Subtotal</span>
+                        <span>₹{subtotal.toFixed(2)}</span>
+                      </div>
+                      {editDiscount > 0 && (
+                        <div className="flex justify-between text-sm text-green-600">
+                          <span>Discount</span>
+                          <span>-₹{editDiscount.toFixed(2)}</span>
+                        </div>
+                      )}
+                      <div className="flex justify-between text-sm">
+                        <span className="text-muted-foreground">Tax ({editTaxRate}%)</span>
+                        <span>₹{taxAmount.toFixed(2)}</span>
+                      </div>
+                      <div className="flex justify-between text-lg font-bold pt-2 border-t">
+                        <span>Total</span>
+                        <span className="text-primary">₹{total.toFixed(2)}</span>
+                      </div>
+                    </>
+                  );
+                })()}
               </div>
             </div>
             <DialogFooter>
               <Button variant="outline" onClick={() => setEditDialogOpen(false)}>Cancel</Button>
               <Button 
-                onClick={() => updateInvoice.mutate({ invoiceId: selectedInvoice.id, items: editItems })}
+                onClick={() => {
+                  const subtotal = editItems.reduce((sum, item) => sum + Number(item.price), 0);
+                  const taxAmount = subtotal * (editTaxRate / 100);
+                  updateInvoice.mutate({ 
+                    invoiceId: selectedInvoice.id, 
+                    items: editItems,
+                    discount: editDiscount,
+                    taxAmount
+                  });
+                }}
                 disabled={updateInvoice.isPending}
               >
                 {updateInvoice.isPending ? "Saving..." : "Save Changes"}

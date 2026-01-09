@@ -1,136 +1,138 @@
-@import url('https://fonts.googleapis.com/css2?family=Lato:wght@300;400;500;600;700&display=swap');
+@import url('https://fonts.googleapis.com/css2?family=Poppins:wght@300;400;500;600;700&display=swap');
 
 @tailwind base;
 @tailwind components;
 @tailwind utilities;
 
-/* Zoho-style Design System - Black & White base with multicolor accents */
+/* Car Wash Yellow Theme - Premium Auto Detailing Style */
 
 @layer base {
   :root {
-    /* Pure B&W backgrounds */
-    --background: 0 0% 100%;
-    --foreground: 0 0% 8%;
+    /* Yellow-focused backgrounds */
+    --background: 48 100% 98%;
+    --foreground: 30 10% 15%;
 
     --card: 0 0% 100%;
-    --card-foreground: 0 0% 8%;
+    --card-foreground: 30 10% 15%;
 
     --popover: 0 0% 100%;
-    --popover-foreground: 0 0% 8%;
+    --popover-foreground: 30 10% 15%;
 
-    /* Black primary for key elements */
-    --primary: 0 0% 8%;
-    --primary-foreground: 0 0% 100%;
+    /* Golden Yellow primary */
+    --primary: 45 93% 47%;
+    --primary-foreground: 30 10% 10%;
 
-    --secondary: 0 0% 96%;
-    --secondary-foreground: 0 0% 8%;
+    --secondary: 48 50% 95%;
+    --secondary-foreground: 30 10% 15%;
 
-    --muted: 0 0% 96%;
-    --muted-foreground: 0 0% 45%;
+    --muted: 45 30% 94%;
+    --muted-foreground: 30 10% 45%;
 
-    /* Accent stays for visual pop */
-    --accent: 0 0% 92%;
-    --accent-foreground: 0 0% 8%;
+    /* Amber accent */
+    --accent: 38 92% 50%;
+    --accent-foreground: 30 10% 10%;
 
     --destructive: 0 72% 51%;
     --destructive-foreground: 0 0% 100%;
 
-    --border: 0 0% 90%;
-    --input: 0 0% 96%;
-    --ring: 0 0% 8%;
+    --border: 45 30% 85%;
+    --input: 48 50% 95%;
+    --ring: 45 93% 47%;
 
-    /* Multicolor for numbers/buttons/visuals */
+    /* Success, Warning, Info */
     --success: 142 71% 45%;
     --success-foreground: 0 0% 100%;
 
-    --warning: 38 92% 50%;
+    --warning: 25 95% 53%;
     --warning-foreground: 0 0% 100%;
 
     --info: 217 91% 60%;
     --info-foreground: 0 0% 100%;
 
-    /* Color palette for visual elements */
+    /* Color palette */
+    --color-yellow: 45 93% 47%;
+    --color-amber: 38 92% 50%;
+    --color-orange: 25 95% 53%;
     --color-blue: 217 91% 60%;
     --color-green: 142 71% 45%;
-    --color-orange: 25 95% 53%;
     --color-purple: 262 83% 58%;
     --color-pink: 330 81% 60%;
     --color-cyan: 186 94% 41%;
     --color-red: 0 72% 51%;
-    --color-yellow: 45 93% 47%;
+    --color-gray: 30 10% 50%;
 
-    --radius: 0.5rem;
+    --radius: 0.75rem;
 
     /* Shadows */
-    --shadow-sm: 0 1px 2px 0 rgba(0, 0, 0, 0.05);
-    --shadow-md: 0 4px 6px -1px rgba(0, 0, 0, 0.1);
-    --shadow-lg: 0 10px 15px -3px rgba(0, 0, 0, 0.1);
+    --shadow-sm: 0 1px 3px 0 rgba(0, 0, 0, 0.08);
+    --shadow-md: 0 4px 12px -2px rgba(0, 0, 0, 0.12);
+    --shadow-lg: 0 12px 24px -4px rgba(0, 0, 0, 0.15);
 
-    /* Smooth transitions */
-    --transition-base: all 0.15s ease;
-    --transition-smooth: all 0.25s cubic-bezier(0.4, 0, 0.2, 1);
+    /* Transitions */
+    --transition-base: all 0.2s ease;
+    --transition-smooth: all 0.3s cubic-bezier(0.4, 0, 0.2, 1);
 
-    /* Sidebar style - clean B&W */
-    --sidebar-background: 0 0% 100%;
-    --sidebar-foreground: 0 0% 8%;
-    --sidebar-primary: 0 0% 8%;
-    --sidebar-primary-foreground: 0 0% 100%;
-    --sidebar-accent: 0 0% 96%;
-    --sidebar-accent-foreground: 0 0% 8%;
-    --sidebar-border: 0 0% 92%;
-    --sidebar-ring: 0 0% 8%;
+    /* Sidebar - Dark contrast */
+    --sidebar-background: 30 15% 10%;
+    --sidebar-foreground: 48 100% 95%;
+    --sidebar-primary: 45 93% 47%;
+    --sidebar-primary-foreground: 30 10% 10%;
+    --sidebar-accent: 30 15% 18%;
+    --sidebar-accent-foreground: 48 100% 95%;
+    --sidebar-border: 30 15% 20%;
+    --sidebar-ring: 45 93% 47%;
   }
 
   .dark {
-    --background: 0 0% 5%;
-    --foreground: 0 0% 98%;
+    --background: 30 15% 8%;
+    --foreground: 48 100% 95%;
 
-    --card: 0 0% 8%;
-    --card-foreground: 0 0% 98%;
+    --card: 30 15% 12%;
+    --card-foreground: 48 100% 95%;
 
-    --popover: 0 0% 8%;
-    --popover-foreground: 0 0% 98%;
+    --popover: 30 15% 12%;
+    --popover-foreground: 48 100% 95%;
 
-    --primary: 0 0% 98%;
-    --primary-foreground: 0 0% 8%;
+    --primary: 45 93% 50%;
+    --primary-foreground: 30 10% 10%;
 
-    --secondary: 0 0% 12%;
-    --secondary-foreground: 0 0% 98%;
+    --secondary: 30 15% 18%;
+    --secondary-foreground: 48 100% 95%;
 
-    --muted: 0 0% 12%;
-    --muted-foreground: 0 0% 55%;
+    --muted: 30 15% 18%;
+    --muted-foreground: 45 30% 60%;
 
-    --accent: 0 0% 15%;
-    --accent-foreground: 0 0% 98%;
+    --accent: 38 92% 50%;
+    --accent-foreground: 30 10% 10%;
 
     --destructive: 0 72% 51%;
     --destructive-foreground: 0 0% 100%;
 
-    --border: 0 0% 18%;
-    --input: 0 0% 12%;
-    --ring: 0 0% 98%;
+    --border: 30 15% 22%;
+    --input: 30 15% 18%;
+    --ring: 45 93% 50%;
 
     --success: 142 71% 45%;
     --success-foreground: 0 0% 100%;
 
-    --warning: 38 92% 50%;
+    --warning: 25 95% 53%;
     --warning-foreground: 0 0% 100%;
 
     --info: 217 91% 60%;
     --info-foreground: 0 0% 100%;
 
-    --shadow-sm: 0 1px 2px 0 rgba(0, 0, 0, 0.3);
-    --shadow-md: 0 4px 6px -1px rgba(0, 0, 0, 0.4);
-    --shadow-lg: 0 10px 15px -3px rgba(0, 0, 0, 0.5);
+    --shadow-sm: 0 1px 3px 0 rgba(0, 0, 0, 0.3);
+    --shadow-md: 0 4px 12px -2px rgba(0, 0, 0, 0.4);
+    --shadow-lg: 0 12px 24px -4px rgba(0, 0, 0, 0.5);
 
-    --sidebar-background: 0 0% 5%;
-    --sidebar-foreground: 0 0% 98%;
-    --sidebar-primary: 0 0% 98%;
-    --sidebar-primary-foreground: 0 0% 8%;
-    --sidebar-accent: 0 0% 12%;
-    --sidebar-accent-foreground: 0 0% 98%;
-    --sidebar-border: 0 0% 15%;
-    --sidebar-ring: 0 0% 98%;
+    --sidebar-background: 30 15% 6%;
+    --sidebar-foreground: 48 100% 95%;
+    --sidebar-primary: 45 93% 50%;
+    --sidebar-primary-foreground: 30 10% 10%;
+    --sidebar-accent: 30 15% 15%;
+    --sidebar-accent-foreground: 48 100% 95%;
+    --sidebar-border: 30 15% 18%;
+    --sidebar-ring: 45 93% 50%;
   }
 }
 
@@ -141,39 +143,79 @@
 
   body {
     @apply bg-background text-foreground antialiased;
-    font-family: 'Lato', -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif;
+    font-family: 'Poppins', -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif;
     font-feature-settings: 'cv11', 'ss01';
   }
 
-  /* Zoho-style typography */
   h1, h2, h3, h4, h5, h6 {
     font-weight: 600;
-    letter-spacing: -0.025em;
+    letter-spacing: -0.02em;
   }
 }
 
-/* Multicolor utility classes for numbers and visuals */
+/* Color utility classes */
+.text-color-yellow { color: hsl(var(--color-yellow)); }
+.text-color-amber { color: hsl(var(--color-amber)); }
+.text-color-orange { color: hsl(var(--color-orange)); }
 .text-color-blue { color: hsl(var(--color-blue)); }
 .text-color-green { color: hsl(var(--color-green)); }
-.text-color-orange { color: hsl(var(--color-orange)); }
 .text-color-purple { color: hsl(var(--color-purple)); }
 .text-color-pink { color: hsl(var(--color-pink)); }
 .text-color-cyan { color: hsl(var(--color-cyan)); }
 .text-color-red { color: hsl(var(--color-red)); }
-.text-color-yellow { color: hsl(var(--color-yellow)); }
+.text-color-gray { color: hsl(var(--color-gray)); }
 
+.bg-color-yellow { background-color: hsl(var(--color-yellow)); }
+.bg-color-amber { background-color: hsl(var(--color-amber)); }
+.bg-color-orange { background-color: hsl(var(--color-orange)); }
 .bg-color-blue { background-color: hsl(var(--color-blue)); }
 .bg-color-green { background-color: hsl(var(--color-green)); }
-.bg-color-orange { background-color: hsl(var(--color-orange)); }
 .bg-color-purple { background-color: hsl(var(--color-purple)); }
 .bg-color-pink { background-color: hsl(var(--color-pink)); }
 .bg-color-cyan { background-color: hsl(var(--color-cyan)); }
 .bg-color-red { background-color: hsl(var(--color-red)); }
-.bg-color-yellow { background-color: hsl(var(--color-yellow)); }
+.bg-color-gray { background-color: hsl(var(--color-gray)); }
 
+.bg-color-yellow\/10 { background-color: hsl(var(--color-yellow) / 0.1); }
+.bg-color-amber\/10 { background-color: hsl(var(--color-amber) / 0.1); }
+.bg-color-orange\/10 { background-color: hsl(var(--color-orange) / 0.1); }
 .bg-color-blue\/10 { background-color: hsl(var(--color-blue) / 0.1); }
 .bg-color-green\/10 { background-color: hsl(var(--color-green) / 0.1); }
-.bg-color-orange\/10 { background-color: hsl(var(--color-orange) / 0.1); }
 .bg-color-purple\/10 { background-color: hsl(var(--color-purple) / 0.1); }
 .bg-color-pink\/10 { background-color: hsl(var(--color-pink) / 0.1); }
 .bg-color-cyan\/10 { background-color: hsl(var(--color-cyan) / 0.1); }
+.bg-color-red\/10 { background-color: hsl(var(--color-red) / 0.1); }
+
+/* Car wash decorative pattern */
+.car-wash-pattern {
+  background-image: 
+    radial-gradient(circle at 20% 80%, hsl(var(--primary) / 0.1) 0%, transparent 50%),
+    radial-gradient(circle at 80% 20%, hsl(var(--accent) / 0.1) 0%, transparent 50%);
+}
+
+/* Water droplet animation */
+@keyframes droplet {
+  0%, 100% { transform: translateY(0) scale(1); opacity: 0.7; }
+  50% { transform: translateY(-5px) scale(1.1); opacity: 1; }
+}
+
+.animate-droplet {
+  animation: droplet 2s ease-in-out infinite;
+}
+
+/* Shine effect */
+@keyframes shine {
+  0% { transform: translateX(-100%); }
+  100% { transform: translateX(100%); }
+}
+
+.shine-effect::after {
+  content: '';
+  position: absolute;
+  top: 0;
+  left: 0;
+  width: 100%;
+  height: 100%;
+  background: linear-gradient(90deg, transparent, hsl(var(--primary) / 0.3), transparent);
+  animation: shine 3s infinite;
+}

@@ -14,7 +14,7 @@ export default {
     },
     extend: {
       fontFamily: {
-        sans: ['Lato', '-apple-system', 'BlinkMacSystemFont', 'Segoe UI', 'sans-serif'],
+        sans: ['Poppins', '-apple-system', 'BlinkMacSystemFont', 'Segoe UI', 'sans-serif'],
       },
       colors: {
         border: "hsl(var(--border))",
@@ -62,15 +62,17 @@ export default {
           DEFAULT: "hsl(var(--info))",
           foreground: "hsl(var(--info-foreground))",
         },
-        // Multicolor palette for numbers/buttons/visuals
+        // Color palette for car wash theme
+        "color-yellow": "hsl(var(--color-yellow))",
+        "color-amber": "hsl(var(--color-amber))",
+        "color-orange": "hsl(var(--color-orange))",
         "color-blue": "hsl(var(--color-blue))",
         "color-green": "hsl(var(--color-green))",
-        "color-orange": "hsl(var(--color-orange))",
         "color-purple": "hsl(var(--color-purple))",
         "color-pink": "hsl(var(--color-pink))",
         "color-cyan": "hsl(var(--color-cyan))",
         "color-red": "hsl(var(--color-red))",
-        "color-yellow": "hsl(var(--color-yellow))",
+        "color-gray": "hsl(var(--color-gray))",
         sidebar: {
           DEFAULT: "hsl(var(--sidebar-background))",
           foreground: "hsl(var(--sidebar-foreground))",
@@ -100,11 +102,21 @@ export default {
           "0%, 100%": { opacity: "1" },
           "50%": { opacity: "0.5" },
         },
+        "droplet": {
+          "0%, 100%": { transform: "translateY(0) scale(1)", opacity: "0.7" },
+          "50%": { transform: "translateY(-5px) scale(1.1)", opacity: "1" },
+        },
+        "shine": {
+          "0%": { transform: "translateX(-100%)" },
+          "100%": { transform: "translateX(100%)" },
+        },
       },
       animation: {
         "accordion-down": "accordion-down 0.2s ease-out",
         "accordion-up": "accordion-up 0.2s ease-out",
         "pulse-slow": "pulse-slow 2s ease-in-out infinite",
+        "droplet": "droplet 2s ease-in-out infinite",
+        "shine": "shine 3s infinite",
       },
     },
   },
