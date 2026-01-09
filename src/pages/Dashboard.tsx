@@ -125,10 +125,13 @@ const Dashboard = () => {
   return (
     <DashboardLayout>
       <div className="p-6 space-y-6">
-        {/* Welcome Section */}
-        <div className="bg-foreground text-background p-8 rounded-lg">
+        {/* Welcome Section - Yellow theme */}
+        <div className="bg-primary text-primary-foreground p-8 rounded-xl relative overflow-hidden">
+          <div className="absolute right-4 top-4 opacity-20">
+            <Car className="h-24 w-24" />
+          </div>
           <h1 className="text-3xl font-bold mb-1">Welcome to AutoWash Pro</h1>
-          <p className="text-background/70">
+          <p className="text-primary-foreground/70">
             {new Date().toLocaleDateString('en-US', { weekday: 'long', year: 'numeric', month: 'long', day: 'numeric' })}
           </p>
         </div>

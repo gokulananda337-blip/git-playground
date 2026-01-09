@@ -12,6 +12,7 @@ import {
   Gift,
   Wrench,
   DollarSign,
+  Droplets,
 } from "lucide-react";
 import { NavLink } from "@/components/NavLink";
 import {
@@ -27,7 +28,7 @@ import {
   SidebarFooter,
   useSidebar,
 } from "@/components/ui/sidebar";
-import { Tooltip, TooltipContent, TooltipTrigger } from "@/components/ui/tooltip";
+import { CarSVG, BubblesSVG } from "@/components/CarWashSVG";
 
 const menuItems = [
   { title: "Dashboard", url: "/dashboard", icon: LayoutDashboard },
@@ -51,24 +52,38 @@ export function AppSidebar() {
   const isCollapsed = state === "collapsed";
 
   return (
-    <Sidebar collapsible="icon" className="border-r border-border bg-sidebar">
-      <SidebarHeader className="border-b border-border p-4">
-        <div className="flex items-center gap-2">
-          <div className="h-8 w-8 rounded-lg bg-gradient-to-br from-primary to-accent flex items-center justify-center shrink-0">
-            <Car className="h-5 w-5 text-primary-foreground" />
+    <Sidebar collapsible="icon" className="border-r border-sidebar-border bg-sidebar">
+      <SidebarHeader className="border-b border-sidebar-border p-4 relative overflow-hidden">
+        {/* Decorative bubbles */}
+        <div className="absolute -right-4 -top-4 text-sidebar-primary opacity-20">
+          <BubblesSVG className="w-20 h-20" />
+        </div>
+        <div className="flex items-center gap-3 relative z-10">
+          <div className="h-10 w-10 rounded-xl bg-primary flex items-center justify-center shrink-0 shadow-lg">
+            <Droplets className="h-5 w-5 text-primary-foreground" />
           </div>
           {!isCollapsed && (
             <div className="overflow-hidden">
-              <h2 className="font-bold text-lg truncate">AutoWash Pro</h2>
-              <p className="text-xs text-muted-foreground truncate">Car Wash Management</p>
+              <h2 className="font-bold text-lg truncate text-sidebar-foreground">AutoWash Pro</h2>
+              <p className="text-xs text-sidebar-foreground/60 truncate">Premium Car Care</p>
             </div>
           )}
         </div>
       </SidebarHeader>
 
-      <SidebarContent>
+      <SidebarContent className="relative">
+        {/* Background car decoration */}
+        {!isCollapsed && (
+          <div className="absolute bottom-20 left-1/2 -translate-x-1/2 text-sidebar-primary opacity-10 pointer-events-none">
+            <CarSVG className="w-32 h-32" />
+          </div>
+        )}
         <SidebarGroup>
-          {!isCollapsed && <SidebarGroupLabel>Main Menu</SidebarGroupLabel>}
+          {!isCollapsed && (
+            <SidebarGroupLabel className="text-sidebar-foreground/50 uppercase text-xs tracking-wider px-3">
+              Navigation
+            </SidebarGroupLabel>
+          )}
           <SidebarGroupContent>
             <SidebarMenu>
               {menuItems.map((item) => (
@@ -76,8 +91,8 @@ export function AppSidebar() {
                   <SidebarMenuButton asChild tooltip={item.title}>
                     <NavLink
                       to={item.url}
-                      className="flex items-center gap-3 px-3 py-2 rounded-lg text-sidebar-foreground hover:bg-sidebar-accent transition-colors"
-                      activeClassName="bg-primary text-primary-foreground font-semibold hover:bg-primary/90"
+                      className="flex items-center gap-3 px-3 py-2.5 rounded-lg text-sidebar-foreground/80 hover:bg-sidebar-accent hover:text-sidebar-foreground transition-all"
+                      activeClassName="bg-primary text-primary-foreground font-semibold hover:bg-primary/90 shadow-md"
                     >
                       <item.icon className="h-4 w-4 shrink-0" />
                       {!isCollapsed && <span className="truncate">{item.title}</span>}
@@ -90,10 +105,15 @@ export function AppSidebar() {
         </SidebarGroup>
       </SidebarContent>
 
-      <SidebarFooter className="border-t border-border p-4">
-        {!isCollapsed && (
-          <div className="text-xs text-muted-foreground">
-            © 2025 AutoWash Pro
+      <SidebarFooter className="border-t border-sidebar-border p-4">
+        {!isCollapsed ? (
+          <div className="flex items-center gap-2 text-xs text-sidebar-foreground/50">
+            <Droplets className="h-3 w-3" />
+            <span>© 2025 AutoWash Pro</span>
+          </div>
+        ) : (
+          <div className="flex justify-center">
+            <Droplets className="h-4 w-4 text-sidebar-primary" />
           </div>
         )}
       </SidebarFooter>

@@ -9,16 +9,21 @@ import { Label } from "@/components/ui/label";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Textarea } from "@/components/ui/textarea";
 import { Calendar } from "@/components/ui/calendar";
+import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover";
 import { useToast } from "@/hooks/use-toast";
 import { supabase } from "@/integrations/supabase/client";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
-import { Plus, Calendar as CalendarIcon, Clock, User, Car, Filter, FileText, Activity } from "lucide-react";
-import { format } from "date-fns";
+import { Plus, Calendar as CalendarIcon, Clock, User, Car, Filter, FileText, Activity, ChevronLeft, ChevronRight } from "lucide-react";
+import { format, addDays, subDays, startOfDay, isEqual } from "date-fns";
+import { cn } from "@/lib/utils";
+import { CarSVG, BubblesSVG } from "@/components/CarWashSVG";
 
 const Bookings = () => {
   const [isAddOpen, setIsAddOpen] = useState(false);
   const [selectedDate, setSelectedDate] = useState<Date>();
   const [statusFilter, setStatusFilter] = useState<string>("all");
+  const [filterDate, setFilterDate] = useState<Date>(new Date());
+  const [showAllDates, setShowAllDates] = useState(false);
   const { toast } = useToast();
   const queryClient = useQueryClient();
   const navigate = useNavigate();
@@ -34,7 +39,7 @@ const Bookings = () => {
   });
 
   const { data: bookings, isLoading } = useQuery({
-    queryKey: ["bookings", statusFilter],
+    queryKey: ["bookings", statusFilter, showAllDates ? null : format(filterDate, "yyyy-MM-dd")],
     queryFn: async () => {
       let query = supabase
         .from("bookings")
@@ -49,6 +54,10 @@ const Bookings = () => {
 
       if (statusFilter !== "all") {
         query = query.eq("status", statusFilter as any);
+      }
+
+      if (!showAllDates) {
+        query = query.eq("booking_date", format(filterDate, "yyyy-MM-dd"));
       }
 
       const { data, error } = await query;
@@ -476,25 +485,102 @@ const Bookings = () => {
           </Dialog>
         </div>
 
-        <Card>
+        {/* Date Filter Section */}
+        <Card className="border-primary/20 bg-gradient-to-r from-primary/5 to-transparent relative overflow-hidden">
+          <div className="absolute right-0 top-0 text-primary opacity-10">
+            <BubblesSVG className="w-32 h-32" />
+          </div>
           <CardHeader>
-            <div className="flex items-center gap-4">
-              <Filter className="h-4 w-4 text-muted-foreground" />
-              <Select value={statusFilter} onValueChange={setStatusFilter}>
-                <SelectTrigger className="w-48">
-                  <SelectValue />
-                </SelectTrigger>
-                <SelectContent>
-                  <SelectItem value="all">All Bookings</SelectItem>
-                  <SelectItem value="pending">Pending</SelectItem>
-                  <SelectItem value="confirmed">Confirmed</SelectItem>
-                  <SelectItem value="in_progress">In Progress</SelectItem>
-                  <SelectItem value="completed">Completed</SelectItem>
-                  <SelectItem value="cancelled">Cancelled</SelectItem>
-                </SelectContent>
-              </Select>
+            <div className="flex flex-wrap items-center gap-4">
+              {/* Date Navigation */}
+              <div className="flex items-center gap-2 bg-background rounded-lg p-1 border">
+                <Button
+                  variant="ghost"
+                  size="icon"
+                  className="h-8 w-8"
+                  onClick={() => setFilterDate(subDays(filterDate, 1))}
+                  disabled={showAllDates}
+                >
+                  <ChevronLeft className="h-4 w-4" />
+                </Button>
+                <Popover>
+                  <PopoverTrigger asChild>
+                    <Button
+                      variant={showAllDates ? "outline" : "default"}
+                      className={cn("min-w-[180px] justify-center gap-2", showAllDates && "opacity-60")}
+                      disabled={showAllDates}
+                    >
+                      <CalendarIcon className="h-4 w-4" />
+                      {format(filterDate, "EEE, MMM dd, yyyy")}
+                    </Button>
+                  </PopoverTrigger>
+                  <PopoverContent className="w-auto p-0" align="start">
+                    <Calendar
+                      mode="single"
+                      selected={filterDate}
+                      onSelect={(date) => date && setFilterDate(date)}
+                      initialFocus
+                      className="pointer-events-auto"
+                    />
+                  </PopoverContent>
+                </Popover>
+                <Button
+                  variant="ghost"
+                  size="icon"
+                  className="h-8 w-8"
+                  onClick={() => setFilterDate(addDays(filterDate, 1))}
+                  disabled={showAllDates}
+                >
+                  <ChevronRight className="h-4 w-4" />
+                </Button>
+              </div>
+
+              {/* Today button */}
+              <Button
+                variant="outline"
+                size="sm"
+                onClick={() => {
+                  setFilterDate(new Date());
+                  setShowAllDates(false);
+                }}
+                className={cn(
+                  isEqual(startOfDay(filterDate), startOfDay(new Date())) && !showAllDates && "bg-primary text-primary-foreground"
+                )}
+              >
+                Today
+              </Button>
+
+              {/* Show All toggle */}
+              <Button
+                variant={showAllDates ? "default" : "outline"}
+                size="sm"
+                onClick={() => setShowAllDates(!showAllDates)}
+              >
+                {showAllDates ? "Showing All" : "Show All Dates"}
+              </Button>
+
+              {/* Status filter */}
+              <div className="flex items-center gap-2 ml-auto">
+                <Filter className="h-4 w-4 text-muted-foreground" />
+                <Select value={statusFilter} onValueChange={setStatusFilter}>
+                  <SelectTrigger className="w-40">
+                    <SelectValue />
+                  </SelectTrigger>
+                  <SelectContent>
+                    <SelectItem value="all">All Status</SelectItem>
+                    <SelectItem value="pending">Pending</SelectItem>
+                    <SelectItem value="confirmed">Confirmed</SelectItem>
+                    <SelectItem value="in_progress">In Progress</SelectItem>
+                    <SelectItem value="completed">Completed</SelectItem>
+                    <SelectItem value="cancelled">Cancelled</SelectItem>
+                  </SelectContent>
+                </Select>
+              </div>
             </div>
           </CardHeader>
+        </Card>
+
+        <Card>
           <CardContent>
             {isLoading ? (
               <div className="text-center py-8 text-muted-foreground">Loading bookings...</div>
