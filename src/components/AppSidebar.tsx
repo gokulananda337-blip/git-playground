@@ -13,6 +13,9 @@ import {
   Wrench,
   DollarSign,
   Droplets,
+  Truck,
+  ClipboardList,
+  Star,
 } from "lucide-react";
 import { NavLink } from "@/components/NavLink";
 import {
@@ -37,7 +40,10 @@ const menuItems = [
   { title: "Vehicles", url: "/vehicles", icon: Car },
   { title: "Services", url: "/services", icon: Wrench },
   { title: "Bookings", url: "/bookings", icon: Calendar },
+  { title: "Job Cards", url: "/job-cards", icon: ClipboardList },
+  { title: "Door Step", url: "/door-step", icon: Truck },
   { title: "Invoices", url: "/invoices", icon: CreditCard },
+  { title: "Loyalty", url: "/loyalty", icon: Star },
   { title: "Staff", url: "/staff", icon: UserCog },
   { title: "Inventory", url: "/inventory", icon: Package },
   { title: "Expenses", url: "/expenses", icon: DollarSign },
