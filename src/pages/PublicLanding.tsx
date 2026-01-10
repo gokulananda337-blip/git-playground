@@ -14,10 +14,11 @@ import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover
 import { useToast } from "@/hooks/use-toast";
 import { CarWashLoader } from "@/components/CarWashLoader";
 import { cn } from "@/lib/utils";
-import { format, addDays, isBefore, startOfDay } from "date-fns";
+import { format, startOfDay, isBefore } from "date-fns";
 import { 
   Phone, Mail, MapPin, Clock, Star, Sparkles, Calendar as CalendarIcon, 
-  ChevronRight, Car, Droplets, CheckCircle2, MessageCircle, Facebook, Instagram
+  ChevronRight, Car, Droplets, CheckCircle2, MessageCircle, Facebook, Instagram,
+  Users, Award, Shield, Zap
 } from "lucide-react";
 
 interface LandingConfig {
@@ -41,6 +42,8 @@ interface LandingConfig {
   features: any[];
   testimonials: any[];
   enable_online_booking: boolean;
+  booking_mode?: string;
+  daily_booking_limit?: number;
 }
 
 export default function PublicLanding() {
@@ -55,12 +58,18 @@ export default function PublicLanding() {
   const [bookingDate, setBookingDate] = useState<Date>();
   const [bookingTime, setBookingTime] = useState("");
   const [selectedServices, setSelectedServices] = useState<string[]>([]);
+  const [submitting, setSubmitting] = useState(false);
+  const [stats, setStats] = useState({ customers: 0, vehicles: 0, reviews: 0, avgRating: 0 });
+  const [todayBookingsCount, setTodayBookingsCount] = useState(0);
   const [customerForm, setCustomerForm] = useState({
     name: "",
     phone: "",
     email: "",
     vehicle_number: "",
     vehicle_type: "sedan",
+    brand: "",
+    model: "",
+    color: "",
     notes: ""
   });
 
@@ -93,12 +102,45 @@ export default function PublicLanding() {
         .order("base_price", { ascending: true });
 
       setServices(servicesData || []);
+
+      // Fetch stats
+      const [customersRes, vehiclesRes, reviewsRes] = await Promise.all([
+        supabase.from("customers").select("id", { count: "exact" }).eq("user_id", configData.user_id),
+        supabase.from("vehicles").select("id", { count: "exact" }).eq("user_id", configData.user_id),
+        supabase.from("reviews").select("rating").eq("user_id", configData.user_id)
+      ]);
+
+      const avgRating = reviewsRes.data?.length 
+        ? (reviewsRes.data.reduce((sum, r) => sum + r.rating, 0) / reviewsRes.data.length)
+        : 0;
+
+      setStats({
+        customers: customersRes.count || 0,
+        vehicles: vehiclesRes.count || 0,
+        reviews: reviewsRes.data?.length || 0,
+        avgRating: Number(avgRating.toFixed(1))
+      });
     } catch (error) {
       console.error("Error fetching landing page:", error);
       navigate("/");
     } finally {
       setLoading(false);
     }
+  };
+
+  const checkDailyLimit = async (date: Date) => {
+    if (!config) return false;
+    
+    const dateStr = format(date, "yyyy-MM-dd");
+    const { count } = await supabase
+      .from("bookings")
+      .select("id", { count: "exact" })
+      .eq("user_id", config.user_id)
+      .eq("booking_date", dateStr);
+
+    const limit = (config as any).daily_booking_limit || 20;
+    setTodayBookingsCount(count || 0);
+    return (count || 0) < limit;
   };
 
   const timeSlots = [
@@ -108,8 +150,12 @@ export default function PublicLanding() {
 
   const getAvailableTimeSlots = () => {
     if (!bookingDate) return timeSlots;
+    
     const today = startOfDay(new Date());
-    if (bookingDate.getTime() === today.getTime()) {
+    const selectedDay = startOfDay(bookingDate);
+    
+    // If selected date is today, filter past time slots
+    if (selectedDay.getTime() === today.getTime()) {
       const now = new Date();
       return timeSlots.filter(slot => {
         const [hours, minutes] = slot.split(":").map(Number);
@@ -118,11 +164,30 @@ export default function PublicLanding() {
         return slotTime > now;
       });
     }
+    
     return timeSlots;
   };
 
+  const handleDateSelect = async (date: Date | undefined) => {
+    if (!date) return;
+    
+    const canBook = await checkDailyLimit(date);
+    if (!canBook) {
+      toast({ 
+        title: "Booking limit reached", 
+        description: "Sorry, this date is fully booked. Please select another date.",
+        variant: "destructive" 
+      });
+      return;
+    }
+    
+    setBookingDate(date);
+    setBookingTime("");
+  };
+
   const handleBooking = async () => {
-    if (!config) return;
+    if (!config || submitting) return;
+    setSubmitting(true);
 
     try {
       // Create or find customer
@@ -131,7 +196,7 @@ export default function PublicLanding() {
         .select("id")
         .eq("phone", customerForm.phone)
         .eq("user_id", config.user_id)
-        .single();
+        .maybeSingle();
 
       let customerId = existingCustomer?.id;
 
@@ -154,12 +219,15 @@ export default function PublicLanding() {
       // Create vehicle
       const { data: vehicle, error: vehicleError } = await supabase
         .from("vehicles")
-        .insert([{
+        .insert({
           customer_id: customerId,
           user_id: config.user_id,
-          vehicle_number: customerForm.vehicle_number,
-          vehicle_type: customerForm.vehicle_type as any
-        }])
+          vehicle_number: customerForm.vehicle_number.toUpperCase(),
+          vehicle_type: customerForm.vehicle_type as any,
+          brand: customerForm.brand || null,
+          model: customerForm.model || null,
+          color: customerForm.color || null
+        })
         .select()
         .single();
 
@@ -173,6 +241,9 @@ export default function PublicLanding() {
         lifecycle_stages: s.lifecycle_stages
       }));
 
+      // Determine booking time
+      const bookingTimeValue = config.booking_mode === "date_only" ? "09:00" : bookingTime;
+
       // Create booking
       const { error: bookingError } = await supabase
         .from("bookings")
@@ -181,7 +252,7 @@ export default function PublicLanding() {
           vehicle_id: vehicle.id,
           user_id: config.user_id,
           booking_date: format(bookingDate!, "yyyy-MM-dd"),
-          booking_time: bookingTime,
+          booking_time: bookingTimeValue,
           services: selectedServiceDetails,
           notes: customerForm.notes,
           status: "pending"
@@ -189,15 +260,24 @@ export default function PublicLanding() {
 
       if (bookingError) throw bookingError;
 
-      toast({ title: "Booking Confirmed!", description: "We'll contact you soon to confirm your appointment." });
+      toast({ 
+        title: "🎉 Booking Confirmed!", 
+        description: "We'll contact you soon to confirm your appointment." 
+      });
+      
       setBookingOpen(false);
       setBookingStep(1);
       setBookingDate(undefined);
       setBookingTime("");
       setSelectedServices([]);
-      setCustomerForm({ name: "", phone: "", email: "", vehicle_number: "", vehicle_type: "sedan", notes: "" });
+      setCustomerForm({ 
+        name: "", phone: "", email: "", vehicle_number: "", 
+        vehicle_type: "sedan", brand: "", model: "", color: "", notes: "" 
+      });
     } catch (error: any) {
       toast({ title: "Booking Failed", description: error.message, variant: "destructive" });
+    } finally {
+      setSubmitting(false);
     }
   };
 
@@ -212,81 +292,141 @@ export default function PublicLanding() {
   if (!config) return null;
 
   const primaryColor = config.primary_color || "#facc15";
+  const bookingMode = (config as any).booking_mode || "slot";
+  const dailyLimit = (config as any).daily_booking_limit || 20;
 
   return (
     <div className="min-h-screen bg-background">
       {/* Hero Section */}
       <div 
-        className="relative min-h-[80vh] flex items-center justify-center text-center p-6"
+        className="relative min-h-[90vh] flex items-center justify-center text-center p-6"
         style={{ 
-          background: `linear-gradient(135deg, ${primaryColor}20 0%, ${primaryColor}05 50%, transparent 100%)`
+          background: `linear-gradient(135deg, ${primaryColor}30 0%, ${primaryColor}10 40%, transparent 100%)`
         }}
       >
-        <div className="absolute inset-0 overflow-hidden">
-          {/* Decorative bubbles */}
-          {[...Array(12)].map((_, i) => (
+        <div className="absolute inset-0 overflow-hidden pointer-events-none">
+          {/* Animated bubbles */}
+          {[...Array(20)].map((_, i) => (
             <div
               key={i}
               className="absolute rounded-full animate-pulse"
               style={{
-                width: `${20 + Math.random() * 40}px`,
-                height: `${20 + Math.random() * 40}px`,
+                width: `${15 + Math.random() * 50}px`,
+                height: `${15 + Math.random() * 50}px`,
                 left: `${Math.random() * 100}%`,
                 top: `${Math.random() * 100}%`,
-                background: `${primaryColor}20`,
-                animationDelay: `${i * 0.2}s`
+                background: `${primaryColor}15`,
+                animationDelay: `${i * 0.15}s`,
+                animationDuration: `${2 + Math.random() * 2}s`
               }}
             />
           ))}
         </div>
         
-        <div className="relative z-10 max-w-4xl mx-auto">
-          <div className="flex justify-center mb-6">
-            <div className="p-4 rounded-full" style={{ background: primaryColor }}>
-              <Car className="h-12 w-12 text-white" />
+        <div className="relative z-10 max-w-5xl mx-auto">
+          {config.logo_url ? (
+            <img src={config.logo_url} alt={config.business_name} className="h-20 mx-auto mb-6" />
+          ) : (
+            <div className="flex justify-center mb-8">
+              <div className="p-5 rounded-full shadow-2xl" style={{ background: primaryColor }}>
+                <Car className="h-16 w-16 text-white" />
+              </div>
             </div>
-          </div>
-          <h1 className="text-5xl md:text-7xl font-bold mb-4">{config.business_name}</h1>
-          {config.tagline && (
-            <p className="text-xl md:text-2xl text-muted-foreground mb-8">{config.tagline}</p>
           )}
+          
+          <h1 className="text-5xl md:text-7xl font-bold mb-4 tracking-tight">{config.business_name}</h1>
+          
+          {config.tagline && (
+            <p className="text-xl md:text-2xl text-muted-foreground mb-8 max-w-2xl mx-auto">{config.tagline}</p>
+          )}
+          
+          {config.description && (
+            <p className="text-lg text-muted-foreground/80 mb-10 max-w-3xl mx-auto">{config.description}</p>
+          )}
+          
           {config.enable_online_booking && (
             <Button 
               size="lg" 
-              className="text-lg px-8 py-6 shadow-xl hover:shadow-2xl transition-all"
+              className="text-xl px-10 py-7 shadow-2xl hover:shadow-3xl transition-all transform hover:scale-105"
               style={{ background: primaryColor }}
               onClick={() => setBookingOpen(true)}
             >
-              <Sparkles className="mr-2 h-5 w-5" />
-              Book Now
+              <Sparkles className="mr-3 h-6 w-6" />
+              Book Your Wash Now
             </Button>
           )}
+
+          {/* Stats */}
+          <div className="grid grid-cols-2 md:grid-cols-4 gap-4 mt-16 max-w-3xl mx-auto">
+            {[
+              { value: `${stats.customers}+`, label: "Happy Customers", icon: Users },
+              { value: `${stats.vehicles}+`, label: "Cars Washed", icon: Car },
+              { value: stats.avgRating > 0 ? `${stats.avgRating}★` : "5.0★", label: "Avg Rating", icon: Star },
+              { value: `${stats.reviews}+`, label: "Reviews", icon: Award },
+            ].map((stat, i) => (
+              <div 
+                key={i} 
+                className="p-4 rounded-xl bg-background/80 backdrop-blur-sm border shadow-lg"
+              >
+                <stat.icon className="h-6 w-6 mx-auto mb-2" style={{ color: primaryColor }} />
+                <p className="text-2xl md:text-3xl font-bold" style={{ color: primaryColor }}>{stat.value}</p>
+                <p className="text-xs text-muted-foreground">{stat.label}</p>
+              </div>
+            ))}
+          </div>
         </div>
       </div>
 
       {/* Services Section */}
-      <div className="py-16 px-6 bg-secondary/30">
+      <div className="py-20 px-6 bg-secondary/30">
         <div className="max-w-6xl mx-auto">
-          <h2 className="text-3xl font-bold text-center mb-12">Our Services</h2>
+          <div className="text-center mb-12">
+            <Badge variant="outline" className="mb-4 px-4 py-1" style={{ borderColor: primaryColor, color: primaryColor }}>
+              Our Services
+            </Badge>
+            <h2 className="text-4xl font-bold mb-4">Premium Car Care Services</h2>
+            <p className="text-muted-foreground max-w-2xl mx-auto">
+              Choose from our range of professional car wash and detailing services
+            </p>
+          </div>
+          
           <div className="grid md:grid-cols-2 lg:grid-cols-3 gap-6">
-            {services.map((service) => (
-              <Card key={service.id} className="hover:shadow-lg transition-all border-2 hover:border-primary/30">
-                <CardHeader>
-                  <CardTitle className="flex items-center justify-between">
-                    <span className="flex items-center gap-2">
-                      <Droplets className="h-5 w-5" style={{ color: primaryColor }} />
-                      {service.name}
-                    </span>
-                    <Badge variant="secondary" style={{ background: `${primaryColor}20`, color: primaryColor }}>
+            {services.map((service, index) => (
+              <Card 
+                key={service.id} 
+                className="hover:shadow-xl transition-all duration-300 border-2 hover:border-primary/50 group"
+              >
+                <CardHeader className="pb-2">
+                  <div className="flex items-center justify-between">
+                    <div className="flex items-center gap-3">
+                      <div 
+                        className="p-2 rounded-lg group-hover:scale-110 transition-transform" 
+                        style={{ background: `${primaryColor}20` }}
+                      >
+                        <Droplets className="h-5 w-5" style={{ color: primaryColor }} />
+                      </div>
+                      <CardTitle className="text-lg">{service.name}</CardTitle>
+                    </div>
+                    <Badge 
+                      className="text-lg font-bold px-3" 
+                      style={{ background: primaryColor, color: "#000" }}
+                    >
                       ₹{service.base_price}
                     </Badge>
-                  </CardTitle>
+                  </div>
                 </CardHeader>
                 <CardContent>
-                  <p className="text-muted-foreground text-sm">{service.description || "Professional car wash service"}</p>
-                  <div className="mt-4 flex items-center gap-2 text-sm text-muted-foreground">
-                    <Clock className="h-4 w-4" />
-                    <span>{service.duration_minutes} mins</span>
+                  <p className="text-muted-foreground text-sm mb-4">
+                    {service.description || "Professional car wash service with attention to detail"}
+                  </p>
+                  <div className="flex items-center gap-4 text-sm text-muted-foreground">
+                    <div className="flex items-center gap-1">
+                      <Clock className="h-4 w-4" />
+                      <span>{service.duration_minutes} mins</span>
+                    </div>
+                    {service.category && (
+                      <Badge variant="secondary">{service.category}</Badge>
+                    )}
                   </div>
                 </CardContent>
               </Card>
@@ -297,13 +437,27 @@ export default function PublicLanding() {
 
       {/* Features Section */}
       {config.features && config.features.length > 0 && (
-        <div className="py-16 px-6">
-          <div className="max-w-4xl mx-auto">
-            <h2 className="text-3xl font-bold text-center mb-12">Why Choose Us</h2>
+        <div className="py-20 px-6">
+          <div className="max-w-5xl mx-auto">
+            <div className="text-center mb-12">
+              <Badge variant="outline" className="mb-4 px-4 py-1" style={{ borderColor: primaryColor, color: primaryColor }}>
+                Why Us
+              </Badge>
+              <h2 className="text-4xl font-bold mb-4">Why Choose Us</h2>
+            </div>
+            
             <div className="grid md:grid-cols-2 gap-6">
               {config.features.map((feature: any, i: number) => (
-                <div key={i} className="flex items-start gap-4 p-4">
-                  <CheckCircle2 className="h-6 w-6 flex-shrink-0" style={{ color: primaryColor }} />
+                <div 
+                  key={i} 
+                  className="flex items-start gap-4 p-6 rounded-xl border bg-card hover:shadow-lg transition-all"
+                >
+                  <div 
+                    className="p-2 rounded-lg flex-shrink-0" 
+                    style={{ background: `${primaryColor}20` }}
+                  >
+                    <CheckCircle2 className="h-6 w-6" style={{ color: primaryColor }} />
+                  </div>
                   <span className="text-lg">{typeof feature === 'string' ? feature : feature.text}</span>
                 </div>
               ))}
@@ -314,19 +468,30 @@ export default function PublicLanding() {
 
       {/* Testimonials */}
       {config.testimonials && config.testimonials.length > 0 && (
-        <div className="py-16 px-6 bg-secondary/30">
-          <div className="max-w-4xl mx-auto">
-            <h2 className="text-3xl font-bold text-center mb-12">What Our Customers Say</h2>
+        <div className="py-20 px-6 bg-secondary/30">
+          <div className="max-w-5xl mx-auto">
+            <div className="text-center mb-12">
+              <Badge variant="outline" className="mb-4 px-4 py-1" style={{ borderColor: primaryColor, color: primaryColor }}>
+                Testimonials
+              </Badge>
+              <h2 className="text-4xl font-bold mb-4">What Our Customers Say</h2>
+            </div>
+            
             <div className="grid md:grid-cols-2 gap-6">
               {config.testimonials.map((testimonial: any, i: number) => (
-                <Card key={i} className="p-6">
-                  <div className="flex items-center gap-1 mb-3">
+                <Card key={i} className="p-6 hover:shadow-lg transition-all">
+                  <div className="flex items-center gap-1 mb-4">
                     {[...Array(testimonial.rating || 5)].map((_, j) => (
                       <Star key={j} className="h-5 w-5 fill-current" style={{ color: primaryColor }} />
                     ))}
                   </div>
-                  <p className="text-muted-foreground mb-4">"{testimonial.text}"</p>
-                  <p className="font-semibold">— {testimonial.name}</p>
+                  <p className="text-muted-foreground mb-4 text-lg italic">"{testimonial.text}"</p>
+                  <p className="font-semibold flex items-center gap-2">
+                    <div className="w-8 h-8 rounded-full flex items-center justify-center text-white text-sm font-bold" style={{ background: primaryColor }}>
+                      {testimonial.name?.charAt(0)?.toUpperCase()}
+                    </div>
+                    {testimonial.name}
+                  </p>
                 </Card>
               ))}
             </div>
@@ -335,49 +500,75 @@ export default function PublicLanding() {
       )}
 
       {/* Contact Section */}
-      <div className="py-16 px-6">
-        <div className="max-w-4xl mx-auto">
-          <h2 className="text-3xl font-bold text-center mb-12">Get In Touch</h2>
+      <div className="py-20 px-6">
+        <div className="max-w-5xl mx-auto">
+          <div className="text-center mb-12">
+            <Badge variant="outline" className="mb-4 px-4 py-1" style={{ borderColor: primaryColor, color: primaryColor }}>
+              Contact
+            </Badge>
+            <h2 className="text-4xl font-bold mb-4">Get In Touch</h2>
+          </div>
+          
           <div className="grid md:grid-cols-2 gap-8">
-            <div className="space-y-6">
+            <div className="space-y-4">
               {config.phone && (
-                <a href={`tel:${config.phone}`} className="flex items-center gap-4 p-4 rounded-lg border hover:bg-secondary/50 transition-all">
-                  <Phone className="h-6 w-6" style={{ color: primaryColor }} />
-                  <span>{config.phone}</span>
+                <a href={`tel:${config.phone}`} className="flex items-center gap-4 p-5 rounded-xl border hover:shadow-lg hover:border-primary/50 transition-all">
+                  <div className="p-3 rounded-lg" style={{ background: `${primaryColor}20` }}>
+                    <Phone className="h-6 w-6" style={{ color: primaryColor }} />
+                  </div>
+                  <div>
+                    <p className="text-sm text-muted-foreground">Call us</p>
+                    <p className="font-semibold text-lg">{config.phone}</p>
+                  </div>
                 </a>
               )}
               {config.whatsapp && (
-                <a href={`https://wa.me/${config.whatsapp.replace(/\D/g, '')}`} target="_blank" rel="noopener noreferrer" className="flex items-center gap-4 p-4 rounded-lg border hover:bg-secondary/50 transition-all">
-                  <MessageCircle className="h-6 w-6 text-green-500" />
-                  <span>WhatsApp</span>
+                <a href={`https://wa.me/${config.whatsapp.replace(/\D/g, '')}`} target="_blank" rel="noopener noreferrer" className="flex items-center gap-4 p-5 rounded-xl border hover:shadow-lg hover:border-green-500/50 transition-all">
+                  <div className="p-3 rounded-lg bg-green-500/20">
+                    <MessageCircle className="h-6 w-6 text-green-500" />
+                  </div>
+                  <div>
+                    <p className="text-sm text-muted-foreground">WhatsApp</p>
+                    <p className="font-semibold text-lg">Chat with us</p>
+                  </div>
                 </a>
               )}
               {config.email && (
-                <a href={`mailto:${config.email}`} className="flex items-center gap-4 p-4 rounded-lg border hover:bg-secondary/50 transition-all">
-                  <Mail className="h-6 w-6" style={{ color: primaryColor }} />
-                  <span>{config.email}</span>
+                <a href={`mailto:${config.email}`} className="flex items-center gap-4 p-5 rounded-xl border hover:shadow-lg hover:border-primary/50 transition-all">
+                  <div className="p-3 rounded-lg" style={{ background: `${primaryColor}20` }}>
+                    <Mail className="h-6 w-6" style={{ color: primaryColor }} />
+                  </div>
+                  <div>
+                    <p className="text-sm text-muted-foreground">Email</p>
+                    <p className="font-semibold">{config.email}</p>
+                  </div>
                 </a>
               )}
               {config.address && (
-                <div className="flex items-start gap-4 p-4 rounded-lg border">
-                  <MapPin className="h-6 w-6 flex-shrink-0" style={{ color: primaryColor }} />
-                  <span>{config.address}</span>
+                <div className="flex items-start gap-4 p-5 rounded-xl border">
+                  <div className="p-3 rounded-lg" style={{ background: `${primaryColor}20` }}>
+                    <MapPin className="h-6 w-6" style={{ color: primaryColor }} />
+                  </div>
+                  <div>
+                    <p className="text-sm text-muted-foreground">Address</p>
+                    <p className="font-semibold">{config.address}</p>
+                  </div>
                 </div>
               )}
             </div>
             
-            {config.working_hours && (
-              <Card>
+            {config.working_hours && Object.keys(config.working_hours).length > 0 && (
+              <Card className="h-fit">
                 <CardHeader>
                   <CardTitle className="flex items-center gap-2">
-                    <Clock className="h-5 w-5" />
+                    <Clock className="h-5 w-5" style={{ color: primaryColor }} />
                     Working Hours
                   </CardTitle>
                 </CardHeader>
-                <CardContent className="space-y-2">
+                <CardContent className="space-y-3">
                   {Object.entries(config.working_hours).map(([day, hours]) => (
-                    <div key={day} className="flex justify-between text-sm">
-                      <span className="capitalize">{day}</span>
+                    <div key={day} className="flex justify-between text-sm border-b pb-2 last:border-0">
+                      <span className="capitalize font-medium">{day}</span>
                       <span className="text-muted-foreground">{hours as string}</span>
                     </div>
                   ))}
@@ -387,20 +578,42 @@ export default function PublicLanding() {
           </div>
           
           {/* Social Links */}
-          <div className="flex justify-center gap-4 mt-8">
+          <div className="flex justify-center gap-4 mt-12">
             {config.facebook_url && (
-              <a href={config.facebook_url} target="_blank" rel="noopener noreferrer" className="p-3 rounded-full border hover:bg-secondary transition-all">
+              <a href={config.facebook_url} target="_blank" rel="noopener noreferrer" className="p-4 rounded-full border hover:bg-secondary hover:scale-110 transition-all">
                 <Facebook className="h-6 w-6" />
               </a>
             )}
             {config.instagram_url && (
-              <a href={config.instagram_url} target="_blank" rel="noopener noreferrer" className="p-3 rounded-full border hover:bg-secondary transition-all">
+              <a href={config.instagram_url} target="_blank" rel="noopener noreferrer" className="p-4 rounded-full border hover:bg-secondary hover:scale-110 transition-all">
                 <Instagram className="h-6 w-6" />
               </a>
             )}
           </div>
         </div>
       </div>
+
+      {/* CTA Section */}
+      {config.enable_online_booking && (
+        <div 
+          className="py-16 px-6 text-center"
+          style={{ background: `linear-gradient(135deg, ${primaryColor}40 0%, ${primaryColor}20 100%)` }}
+        >
+          <h2 className="text-3xl font-bold mb-4">Ready for a Sparkling Clean Car?</h2>
+          <p className="text-muted-foreground mb-8 max-w-xl mx-auto">
+            Book your appointment now and experience the best car wash service in town!
+          </p>
+          <Button 
+            size="lg" 
+            className="text-lg px-8 py-6 shadow-xl"
+            style={{ background: primaryColor, color: "#000" }}
+            onClick={() => setBookingOpen(true)}
+          >
+            <Sparkles className="mr-2 h-5 w-5" />
+            Book Now
+          </Button>
+        </div>
+      )}
 
       {/* Footer */}
       <div className="py-8 px-6 border-t text-center text-muted-foreground">
@@ -411,7 +624,10 @@ export default function PublicLanding() {
       <Dialog open={bookingOpen} onOpenChange={setBookingOpen}>
         <DialogContent className="max-w-lg max-h-[90vh] overflow-y-auto">
           <DialogHeader>
-            <DialogTitle>Book Appointment</DialogTitle>
+            <DialogTitle className="flex items-center gap-2">
+              <Sparkles className="h-5 w-5" style={{ color: primaryColor }} />
+              Book Appointment
+            </DialogTitle>
           </DialogHeader>
           
           {bookingStep === 1 && (
@@ -422,9 +638,10 @@ export default function PublicLanding() {
                   <label 
                     key={service.id} 
                     className={cn(
-                      "flex items-center justify-between p-3 rounded-lg border cursor-pointer transition-all",
-                      selectedServices.includes(service.id) && "border-primary bg-primary/5"
+                      "flex items-center justify-between p-4 rounded-lg border cursor-pointer transition-all hover:shadow-md",
+                      selectedServices.includes(service.id) && "border-2"
                     )}
+                    style={selectedServices.includes(service.id) ? { borderColor: primaryColor, background: `${primaryColor}10` } : {}}
                   >
                     <div className="flex items-center gap-3">
                       <input
@@ -439,17 +656,27 @@ export default function PublicLanding() {
                         }}
                         className="rounded"
                       />
-                      <span>{service.name}</span>
+                      <div>
+                        <span className="font-medium">{service.name}</span>
+                        <p className="text-xs text-muted-foreground">{service.duration_minutes} mins</p>
+                      </div>
                     </div>
-                    <Badge variant="secondary">₹{service.base_price}</Badge>
+                    <Badge style={{ background: primaryColor, color: "#000" }}>₹{service.base_price}</Badge>
                   </label>
                 ))}
               </div>
               <div className="flex justify-between items-center pt-4 border-t">
-                <span className="font-semibold">
-                  Total: ₹{services.filter(s => selectedServices.includes(s.id)).reduce((sum, s) => sum + Number(s.base_price), 0)}
-                </span>
-                <Button onClick={() => setBookingStep(2)} disabled={selectedServices.length === 0}>
+                <div>
+                  <span className="text-sm text-muted-foreground">Total</span>
+                  <p className="text-2xl font-bold" style={{ color: primaryColor }}>
+                    ₹{services.filter(s => selectedServices.includes(s.id)).reduce((sum, s) => sum + Number(s.base_price), 0)}
+                  </p>
+                </div>
+                <Button 
+                  onClick={() => setBookingStep(2)} 
+                  disabled={selectedServices.length === 0}
+                  style={{ background: primaryColor }}
+                >
                   Next <ChevronRight className="ml-2 h-4 w-4" />
                 </Button>
               </div>
@@ -458,7 +685,7 @@ export default function PublicLanding() {
 
           {bookingStep === 2 && (
             <div className="space-y-4">
-              <h3 className="font-semibold">Select Date & Time</h3>
+              <h3 className="font-semibold">Select Date {bookingMode === "slot" && "& Time"}</h3>
               <div>
                 <Label>Date</Label>
                 <Popover>
@@ -472,28 +699,48 @@ export default function PublicLanding() {
                     <Calendar
                       mode="single"
                       selected={bookingDate}
-                      onSelect={setBookingDate}
-                      disabled={(date) => isBefore(date, startOfDay(new Date()))}
+                      onSelect={handleDateSelect}
+                      disabled={(date) => {
+                        const today = startOfDay(new Date());
+                        return isBefore(date, today);
+                      }}
                     />
                   </PopoverContent>
                 </Popover>
+                {bookingDate && (
+                  <p className="text-xs text-muted-foreground mt-1">
+                    {todayBookingsCount}/{dailyLimit} bookings for this date
+                  </p>
+                )}
               </div>
-              <div>
-                <Label>Time Slot</Label>
-                <Select value={bookingTime} onValueChange={setBookingTime}>
-                  <SelectTrigger>
-                    <SelectValue placeholder="Select time" />
-                  </SelectTrigger>
-                  <SelectContent>
-                    {getAvailableTimeSlots().map((time) => (
-                      <SelectItem key={time} value={time}>{time}</SelectItem>
-                    ))}
-                  </SelectContent>
-                </Select>
-              </div>
+              
+              {bookingMode === "slot" && (
+                <div>
+                  <Label>Time Slot</Label>
+                  <Select value={bookingTime} onValueChange={setBookingTime}>
+                    <SelectTrigger>
+                      <SelectValue placeholder="Select time" />
+                    </SelectTrigger>
+                    <SelectContent>
+                      {getAvailableTimeSlots().length === 0 ? (
+                        <SelectItem value="" disabled>No slots available</SelectItem>
+                      ) : (
+                        getAvailableTimeSlots().map((time) => (
+                          <SelectItem key={time} value={time}>{time}</SelectItem>
+                        ))
+                      )}
+                    </SelectContent>
+                  </Select>
+                </div>
+              )}
+              
               <div className="flex justify-between pt-4 border-t">
                 <Button variant="outline" onClick={() => setBookingStep(1)}>Back</Button>
-                <Button onClick={() => setBookingStep(3)} disabled={!bookingDate || !bookingTime}>
+                <Button 
+                  onClick={() => setBookingStep(3)} 
+                  disabled={!bookingDate || (bookingMode === "slot" && !bookingTime)}
+                  style={{ background: primaryColor }}
+                >
                   Next <ChevronRight className="ml-2 h-4 w-4" />
                 </Button>
               </div>
@@ -504,21 +751,23 @@ export default function PublicLanding() {
             <div className="space-y-4">
               <h3 className="font-semibold">Your Details</h3>
               <div className="grid gap-4">
-                <div>
-                  <Label>Name *</Label>
-                  <Input 
-                    value={customerForm.name} 
-                    onChange={(e) => setCustomerForm({ ...customerForm, name: e.target.value })}
-                    placeholder="John Doe"
-                  />
-                </div>
-                <div>
-                  <Label>Phone *</Label>
-                  <Input 
-                    value={customerForm.phone} 
-                    onChange={(e) => setCustomerForm({ ...customerForm, phone: e.target.value })}
-                    placeholder="+91 98765 43210"
-                  />
+                <div className="grid grid-cols-2 gap-4">
+                  <div>
+                    <Label>Name *</Label>
+                    <Input 
+                      value={customerForm.name} 
+                      onChange={(e) => setCustomerForm({ ...customerForm, name: e.target.value })}
+                      placeholder="John Doe"
+                    />
+                  </div>
+                  <div>
+                    <Label>Phone *</Label>
+                    <Input 
+                      value={customerForm.phone} 
+                      onChange={(e) => setCustomerForm({ ...customerForm, phone: e.target.value })}
+                      placeholder="+91 98765 43210"
+                    />
+                  </div>
                 </div>
                 <div>
                   <Label>Email</Label>
@@ -529,27 +778,56 @@ export default function PublicLanding() {
                     placeholder="john@example.com"
                   />
                 </div>
-                <div>
-                  <Label>Vehicle Number *</Label>
-                  <Input 
-                    value={customerForm.vehicle_number} 
-                    onChange={(e) => setCustomerForm({ ...customerForm, vehicle_number: e.target.value })}
-                    placeholder="KA 01 AB 1234"
-                  />
+                <div className="grid grid-cols-2 gap-4">
+                  <div>
+                    <Label>Vehicle Number *</Label>
+                    <Input 
+                      value={customerForm.vehicle_number} 
+                      onChange={(e) => setCustomerForm({ ...customerForm, vehicle_number: e.target.value.toUpperCase() })}
+                      placeholder="KA 01 AB 1234"
+                    />
+                  </div>
+                  <div>
+                    <Label>Vehicle Type</Label>
+                    <Select value={customerForm.vehicle_type} onValueChange={(v) => setCustomerForm({ ...customerForm, vehicle_type: v })}>
+                      <SelectTrigger>
+                        <SelectValue />
+                      </SelectTrigger>
+                      <SelectContent>
+                        <SelectItem value="hatchback">Hatchback</SelectItem>
+                        <SelectItem value="sedan">Sedan</SelectItem>
+                        <SelectItem value="suv">SUV</SelectItem>
+                        <SelectItem value="luxury">Luxury</SelectItem>
+                        <SelectItem value="bike">Bike</SelectItem>
+                      </SelectContent>
+                    </Select>
+                  </div>
                 </div>
-                <div>
-                  <Label>Vehicle Type</Label>
-                  <Select value={customerForm.vehicle_type} onValueChange={(v) => setCustomerForm({ ...customerForm, vehicle_type: v })}>
-                    <SelectTrigger>
-                      <SelectValue />
-                    </SelectTrigger>
-                    <SelectContent>
-                      <SelectItem value="sedan">Sedan</SelectItem>
-                      <SelectItem value="suv">SUV</SelectItem>
-                      <SelectItem value="hatchback">Hatchback</SelectItem>
-                      <SelectItem value="bike">Bike</SelectItem>
-                    </SelectContent>
-                  </Select>
+                <div className="grid grid-cols-3 gap-4">
+                  <div>
+                    <Label>Brand</Label>
+                    <Input 
+                      value={customerForm.brand} 
+                      onChange={(e) => setCustomerForm({ ...customerForm, brand: e.target.value })}
+                      placeholder="Toyota"
+                    />
+                  </div>
+                  <div>
+                    <Label>Model</Label>
+                    <Input 
+                      value={customerForm.model} 
+                      onChange={(e) => setCustomerForm({ ...customerForm, model: e.target.value })}
+                      placeholder="Camry"
+                    />
+                  </div>
+                  <div>
+                    <Label>Color</Label>
+                    <Input 
+                      value={customerForm.color} 
+                      onChange={(e) => setCustomerForm({ ...customerForm, color: e.target.value })}
+                      placeholder="Silver"
+                    />
+                  </div>
                 </div>
                 <div>
                   <Label>Notes</Label>
@@ -565,9 +843,10 @@ export default function PublicLanding() {
                 <Button variant="outline" onClick={() => setBookingStep(2)}>Back</Button>
                 <Button 
                   onClick={handleBooking} 
-                  disabled={!customerForm.name || !customerForm.phone || !customerForm.vehicle_number}
+                  disabled={!customerForm.name || !customerForm.phone || !customerForm.vehicle_number || submitting}
+                  style={{ background: primaryColor }}
                 >
-                  Confirm Booking
+                  {submitting ? "Booking..." : "Confirm Booking"}
                 </Button>
               </div>
             </div>

@@ -208,6 +208,92 @@ export type Database = {
         }
         Relationships: []
       }
+      door_step_services: {
+        Row: {
+          assigned_staff_id: string | null
+          booking_id: string
+          created_at: string
+          customer_id: string
+          delivery_address: string | null
+          delivery_time: string | null
+          estimated_delivery_time: string | null
+          estimated_pickup_time: string | null
+          id: string
+          notes: string | null
+          pickup_address: string
+          pickup_time: string | null
+          status: string
+          updated_at: string
+          user_id: string
+          vehicle_id: string
+        }
+        Insert: {
+          assigned_staff_id?: string | null
+          booking_id: string
+          created_at?: string
+          customer_id: string
+          delivery_address?: string | null
+          delivery_time?: string | null
+          estimated_delivery_time?: string | null
+          estimated_pickup_time?: string | null
+          id?: string
+          notes?: string | null
+          pickup_address: string
+          pickup_time?: string | null
+          status?: string
+          updated_at?: string
+          user_id: string
+          vehicle_id: string
+        }
+        Update: {
+          assigned_staff_id?: string | null
+          booking_id?: string
+          created_at?: string
+          customer_id?: string
+          delivery_address?: string | null
+          delivery_time?: string | null
+          estimated_delivery_time?: string | null
+          estimated_pickup_time?: string | null
+          id?: string
+          notes?: string | null
+          pickup_address?: string
+          pickup_time?: string | null
+          status?: string
+          updated_at?: string
+          user_id?: string
+          vehicle_id?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "door_step_services_assigned_staff_id_fkey"
+            columns: ["assigned_staff_id"]
+            isOneToOne: false
+            referencedRelation: "profiles"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "door_step_services_booking_id_fkey"
+            columns: ["booking_id"]
+            isOneToOne: false
+            referencedRelation: "bookings"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "door_step_services_customer_id_fkey"
+            columns: ["customer_id"]
+            isOneToOne: false
+            referencedRelation: "customers"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "door_step_services_vehicle_id_fkey"
+            columns: ["vehicle_id"]
+            isOneToOne: false
+            referencedRelation: "vehicles"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       expenses: {
         Row: {
           amount: number
@@ -522,8 +608,10 @@ export type Database = {
       landing_page_config: {
         Row: {
           address: string | null
+          booking_mode: string | null
           business_name: string
           created_at: string
+          daily_booking_limit: number | null
           description: string | null
           email: string | null
           enable_online_booking: boolean | null
@@ -537,6 +625,7 @@ export type Database = {
           logo_url: string | null
           phone: string | null
           primary_color: string | null
+          slot_duration_minutes: number | null
           slug: string | null
           tagline: string | null
           testimonials: Json | null
@@ -547,8 +636,10 @@ export type Database = {
         }
         Insert: {
           address?: string | null
+          booking_mode?: string | null
           business_name?: string
           created_at?: string
+          daily_booking_limit?: number | null
           description?: string | null
           email?: string | null
           enable_online_booking?: boolean | null
@@ -562,6 +653,7 @@ export type Database = {
           logo_url?: string | null
           phone?: string | null
           primary_color?: string | null
+          slot_duration_minutes?: number | null
           slug?: string | null
           tagline?: string | null
           testimonials?: Json | null
@@ -572,8 +664,10 @@ export type Database = {
         }
         Update: {
           address?: string | null
+          booking_mode?: string | null
           business_name?: string
           created_at?: string
+          daily_booking_limit?: number | null
           description?: string | null
           email?: string | null
           enable_online_booking?: boolean | null
@@ -587,6 +681,7 @@ export type Database = {
           logo_url?: string | null
           phone?: string | null
           primary_color?: string | null
+          slot_duration_minutes?: number | null
           slug?: string | null
           tagline?: string | null
           testimonials?: Json | null

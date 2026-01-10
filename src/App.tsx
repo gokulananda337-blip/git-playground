@@ -21,6 +21,10 @@ import Services from "./pages/Services";
 import Expenses from "./pages/Expenses";
 import Reviews from "./pages/Reviews";
 import CustomerPortal from "./pages/CustomerPortal";
+import LoyaltyProgram from "./pages/LoyaltyProgram";
+import PublicLanding from "./pages/PublicLanding";
+import DoorStepService from "./pages/DoorStepService";
+import JobCards from "./pages/JobCards";
 import NotFound from "./pages/NotFound";
 
 const queryClient = new QueryClient();
@@ -51,6 +55,10 @@ const App = () => (
           <Route path="/subscriptions" element={<Subscriptions />} />
           <Route path="/reviews" element={<Reviews />} />
           <Route path="/customer-portal" element={<CustomerPortal />} />
+          <Route path="/loyalty" element={<LoyaltyProgram />} />
+          <Route path="/door-step" element={<DoorStepService />} />
+          <Route path="/job-cards" element={<JobCards />} />
+          <Route path="/wash/:slug" element={<PublicLanding />} />
           {/* ADD ALL CUSTOM ROUTES ABOVE THE CATCH-ALL "*" ROUTE */}
           <Route path="*" element={<NotFound />} />
         </Routes>
