@@ -390,14 +390,21 @@ export default function PublicLanding() {
             </p>
           </div>
           
-          <div className="grid md:grid-cols-2 lg:grid-cols-3 gap-6">
-            {services.map((service, index) => (
-              <Card 
-                key={service.id} 
-                className="hover:shadow-xl transition-all duration-300 border-2 hover:border-primary/50 group"
-              >
-                <CardHeader className="pb-2">
-                  <div className="flex items-center justify-between">
+          {services.length > 0 ? (
+            <div className="grid md:grid-cols-2 lg:grid-cols-3 gap-6">
+              {services.map((service, index) => (
+                <Card 
+                  key={service.id} 
+                  className="hover:shadow-xl transition-all duration-300 border-2 hover:border-primary/50 group relative overflow-hidden"
+                >
+                  {/* Service number badge */}
+                  <div 
+                    className="absolute top-3 right-3 w-8 h-8 rounded-full flex items-center justify-center text-sm font-bold"
+                    style={{ background: `${primaryColor}20`, color: primaryColor }}
+                  >
+                    {index + 1}
+                  </div>
+                  <CardHeader className="pb-2">
                     <div className="flex items-center gap-3">
                       <div 
                         className="p-2 rounded-lg group-hover:scale-110 transition-transform" 
@@ -405,33 +412,41 @@ export default function PublicLanding() {
                       >
                         <Droplets className="h-5 w-5" style={{ color: primaryColor }} />
                       </div>
-                      <CardTitle className="text-lg">{service.name}</CardTitle>
+                      <div>
+                        <CardTitle className="text-lg">{service.name}</CardTitle>
+                        {service.category && (
+                          <Badge variant="secondary" className="mt-1 text-xs">{service.category}</Badge>
+                        )}
+                      </div>
                     </div>
-                    <Badge 
-                      className="text-lg font-bold px-3" 
-                      style={{ background: primaryColor, color: "#000" }}
-                    >
-                      ₹{service.base_price}
-                    </Badge>
-                  </div>
-                </CardHeader>
-                <CardContent>
-                  <p className="text-muted-foreground text-sm mb-4">
-                    {service.description || "Professional car wash service with attention to detail"}
-                  </p>
-                  <div className="flex items-center gap-4 text-sm text-muted-foreground">
-                    <div className="flex items-center gap-1">
-                      <Clock className="h-4 w-4" />
-                      <span>{service.duration_minutes} mins</span>
+                  </CardHeader>
+                  <CardContent>
+                    <p className="text-muted-foreground text-sm mb-4 min-h-[40px]">
+                      {service.description || "Professional car wash service with attention to detail"}
+                    </p>
+                    <div className="flex items-center justify-between pt-3 border-t">
+                      <div className="flex items-center gap-1 text-sm text-muted-foreground">
+                        <Clock className="h-4 w-4" />
+                        <span>{service.duration_minutes} mins</span>
+                      </div>
+                      <Badge 
+                        className="text-lg font-bold px-4 py-1" 
+                        style={{ background: primaryColor, color: "#000" }}
+                      >
+                        ₹{service.base_price}
+                      </Badge>
                     </div>
-                    {service.category && (
-                      <Badge variant="secondary">{service.category}</Badge>
-                    )}
-                  </div>
-                </CardContent>
-              </Card>
-            ))}
-          </div>
+                  </CardContent>
+                </Card>
+              ))}
+            </div>
+          ) : (
+            <div className="text-center py-16 bg-muted/30 rounded-2xl">
+              <Droplets className="h-16 w-16 mx-auto mb-4 text-muted-foreground/50" />
+              <h3 className="text-xl font-semibold text-muted-foreground">Services Coming Soon</h3>
+              <p className="text-muted-foreground mt-2">We're setting up our service menu. Check back soon!</p>
+            </div>
+          )}
         </div>
       </div>
 

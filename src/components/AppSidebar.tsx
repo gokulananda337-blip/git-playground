@@ -1,3 +1,5 @@
+import { useCallback } from "react";
+import { useNavigate, useLocation } from "react-router-dom";
 import {
   LayoutDashboard,
   Users,
@@ -17,7 +19,6 @@ import {
   ClipboardList,
   Star,
 } from "lucide-react";
-import { NavLink } from "@/components/NavLink";
 import {
   Sidebar,
   SidebarContent,
@@ -32,6 +33,7 @@ import {
   useSidebar,
 } from "@/components/ui/sidebar";
 import { CarSVG, BubblesSVG } from "@/components/CarWashSVG";
+import { cn } from "@/lib/utils";
 
 const menuItems = [
   { title: "Dashboard", url: "/dashboard", icon: LayoutDashboard },
@@ -54,8 +56,16 @@ const menuItems = [
 ];
 
 export function AppSidebar() {
-  const { state } = useSidebar();
+  const { state, setOpen } = useSidebar();
   const isCollapsed = state === "collapsed";
+  const navigate = useNavigate();
+  const location = useLocation();
+
+  const handleNavClick = useCallback((url: string, e: React.MouseEvent) => {
+    e.preventDefault();
+    e.stopPropagation();
+    navigate(url);
+  }, [navigate]);
 
   return (
     <Sidebar collapsible="icon" className="border-r border-sidebar-border bg-sidebar">
@@ -92,20 +102,26 @@ export function AppSidebar() {
           )}
           <SidebarGroupContent>
             <SidebarMenu>
-              {menuItems.map((item) => (
-                <SidebarMenuItem key={item.title}>
-                  <SidebarMenuButton asChild tooltip={item.title}>
-                    <NavLink
-                      to={item.url}
-                      className="flex items-center gap-3 px-3 py-2.5 rounded-lg text-sidebar-foreground/80 hover:bg-sidebar-accent hover:text-sidebar-foreground transition-all"
-                      activeClassName="bg-primary text-primary-foreground font-semibold hover:bg-primary/90 shadow-md"
+              {menuItems.map((item) => {
+                const isActive = location.pathname === item.url;
+                return (
+                  <SidebarMenuItem key={item.title}>
+                    <SidebarMenuButton 
+                      tooltip={item.title}
+                      onClick={(e) => handleNavClick(item.url, e)}
+                      className={cn(
+                        "flex items-center gap-3 px-3 py-2.5 rounded-lg transition-all cursor-pointer",
+                        isActive 
+                          ? "bg-primary text-primary-foreground font-semibold shadow-md" 
+                          : "text-sidebar-foreground/80 hover:bg-sidebar-accent hover:text-sidebar-foreground"
+                      )}
                     >
                       <item.icon className="h-4 w-4 shrink-0" />
                       {!isCollapsed && <span className="truncate">{item.title}</span>}
-                    </NavLink>
-                  </SidebarMenuButton>
-                </SidebarMenuItem>
-              ))}
+                    </SidebarMenuButton>
+                  </SidebarMenuItem>
+                );
+              })}
             </SidebarMenu>
           </SidebarGroupContent>
         </SidebarGroup>
