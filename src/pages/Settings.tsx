@@ -487,40 +487,48 @@ export default function Settings() {
           </TabsContent>
 
           <TabsContent value="landing" className="space-y-6">
-            {/* Public Page Link */}
-            {landingConfig.slug && (
-              <Card className="bg-primary/5 border-primary/20">
-                <CardContent className="p-4">
-                  <div className="flex items-center gap-4 flex-wrap">
-                    <Globe className="h-5 w-5 text-primary" />
-                    <div className="flex-1">
-                      <p className="text-sm font-medium">Your Public Landing Page</p>
-                      <p className="text-sm text-muted-foreground font-mono">{publicPageUrl}</p>
-                    </div>
-                    <div className="flex gap-2">
+            {/* Public Page Link - Always Visible */}
+            <Card className="border-2 border-primary/30 bg-gradient-to-r from-primary/10 to-transparent">
+              <CardContent className="p-5">
+                <div className="flex items-center gap-4 flex-wrap">
+                  <div className="p-3 rounded-full bg-primary/20">
+                    <Globe className="h-6 w-6 text-primary" />
+                  </div>
+                  <div className="flex-1 min-w-[200px]">
+                    <p className="font-semibold text-lg">Your Public Landing Page</p>
+                    {landingConfig.slug ? (
+                      <p className="text-sm text-muted-foreground font-mono break-all">{publicPageUrl}</p>
+                    ) : (
+                      <p className="text-sm text-muted-foreground">Configure a slug below to generate your public page URL</p>
+                    )}
+                  </div>
+                  {landingConfig.slug && (
+                    <div className="flex gap-2 flex-wrap">
                       <Button
                         size="sm"
                         variant="outline"
+                        className="gap-2"
                         onClick={() => {
                           navigator.clipboard.writeText(publicPageUrl);
-                          toast({ title: "Link copied!" });
+                          toast({ title: "Link copied to clipboard!" });
                         }}
                       >
-                        <Copy className="h-4 w-4 mr-1" />
-                        Copy
+                        <Copy className="h-4 w-4" />
+                        Copy Link
                       </Button>
                       <Button
                         size="sm"
+                        className="gap-2"
                         onClick={() => window.open(publicPageUrl, "_blank")}
                       >
-                        <ExternalLink className="h-4 w-4 mr-1" />
-                        Open
+                        <ExternalLink className="h-4 w-4" />
+                        Preview Page
                       </Button>
                     </div>
-                  </div>
-                </CardContent>
-              </Card>
-            )}
+                  )}
+                </div>
+              </CardContent>
+            </Card>
 
             <Card>
               <CardHeader className="border-b">

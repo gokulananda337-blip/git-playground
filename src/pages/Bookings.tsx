@@ -136,12 +136,18 @@ const Bookings = () => {
   });
 
   const updateStatus = useMutation({
-    mutationFn: async ({ id, status, booking }: { id: string; status: any; booking?: any }) => {
+    mutationFn: async ({ id, status, booking }: { id: string; status: string; booking?: any }) => {
+      console.log("Updating booking status:", { id, status, booking });
+      
       const { error } = await supabase
         .from("bookings")
-        .update({ status })
+        .update({ status: status as any })
         .eq("id", id);
-      if (error) throw error;
+      
+      if (error) {
+        console.error("Error updating status:", error);
+        throw error;
+      }
 
       // Auto-create job card when status becomes "confirmed"
       if (status === "confirmed" && booking) {
@@ -159,6 +165,7 @@ const Bookings = () => {
           console.error("Error checking existing job card:", existingJobCardError);
           throw existingJobCardError;
         }
+        
         if (!existingJobCard) {
           const { error: jobCardError } = await supabase.from("job_cards").insert({
             user_id: user.id,
@@ -180,7 +187,11 @@ const Bookings = () => {
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ["bookings"] });
       queryClient.invalidateQueries({ queryKey: ["jobCards"] });
-      toast({ title: "Status updated" });
+      toast({ title: "Status updated successfully" });
+    },
+    onError: (error: any) => {
+      console.error("Status update failed:", error);
+      toast({ title: "Error updating status", description: error.message, variant: "destructive" });
     }
   });
 
