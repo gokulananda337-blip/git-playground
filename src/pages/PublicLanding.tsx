@@ -87,32 +87,34 @@ export default function PublicLanding() {
         .single();
 
       if (error || !configData) {
+        console.error("Landing page not found:", error);
         navigate("/");
         return;
       }
 
       setConfig(configData as LandingConfig);
 
-      // Fetch services for this user
-      const { data: servicesData } = await supabase
+      // Fetch services for this user - ensure we get services even without auth
+      const { data: servicesData, error: servicesError } = await supabase
         .from("services")
-        .select("*")
+        .select("id, name, description, base_price, duration_minutes, category, is_active")
         .eq("user_id", configData.user_id)
         .eq("is_active", true)
         .order("base_price", { ascending: true });
 
+      console.log("Services fetched:", servicesData, servicesError);
       setServices(servicesData || []);
 
-      // Fetch stats
+      // Fetch stats - use count for efficiency
       const [customersRes, vehiclesRes, reviewsRes] = await Promise.all([
-        supabase.from("customers").select("id", { count: "exact" }).eq("user_id", configData.user_id),
-        supabase.from("vehicles").select("id", { count: "exact" }).eq("user_id", configData.user_id),
+        supabase.from("customers").select("id", { count: "exact", head: true }).eq("user_id", configData.user_id),
+        supabase.from("vehicles").select("id", { count: "exact", head: true }).eq("user_id", configData.user_id),
         supabase.from("reviews").select("rating").eq("user_id", configData.user_id)
       ]);
 
       const avgRating = reviewsRes.data?.length 
         ? (reviewsRes.data.reduce((sum, r) => sum + r.rating, 0) / reviewsRes.data.length)
-        : 0;
+        : 5.0;
 
       setStats({
         customers: customersRes.count || 0,

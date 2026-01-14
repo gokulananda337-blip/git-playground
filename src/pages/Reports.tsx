@@ -1,19 +1,23 @@
 import DashboardLayout from "@/components/DashboardLayout";
-import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
+import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover";
 import { Calendar } from "@/components/ui/calendar";
+import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
+import { Badge } from "@/components/ui/badge";
 import { useQuery } from "@tanstack/react-query";
 import { supabase } from "@/integrations/supabase/client";
-import { BarChart, Bar, LineChart, Line, PieChart, Pie, Cell, XAxis, YAxis, CartesianGrid, Tooltip, Legend, ResponsiveContainer, AreaChart, Area, RadialBarChart, RadialBar } from "recharts";
-import { Download, TrendingUp, Users, Car, DollarSign, Calendar as CalendarIcon, Package, Activity, TrendingDown, UserCheck, Star, Repeat, PieChart as PieChartIcon, BarChart3, Wallet } from "lucide-react";
+import { BarChart, Bar, LineChart, Line, PieChart, Pie, Cell, XAxis, YAxis, CartesianGrid, Tooltip, Legend, ResponsiveContainer, AreaChart, Area } from "recharts";
+import { Download, TrendingUp, Users, Car, DollarSign, Calendar as CalendarIcon, Package, Activity, TrendingDown, UserCheck, Star, Repeat, PieChart as PieChartIcon, BarChart3, Wallet, FileText, ArrowUpRight, ArrowDownRight } from "lucide-react";
 import { useState } from "react";
 import { format, subDays, subMonths, startOfMonth, endOfMonth } from "date-fns";
+import { CarWashLoader } from "@/components/CarWashLoader";
 
 const Reports = () => {
   const [dateRange, setDateRange] = useState({ from: subDays(new Date(), 30), to: new Date() });
   const [selectedDepartment, setSelectedDepartment] = useState<string>("all");
+  const [activeTab, setActiveTab] = useState("overview");
 
   const { data: departments } = useQuery({
     queryKey: ["branches"],
@@ -26,7 +30,7 @@ const Reports = () => {
     }
   });
 
-  const { data: stats } = useQuery({
+  const { data: stats, isLoading } = useQuery({
     queryKey: ["reports-stats", selectedDepartment, dateRange],
     queryFn: async () => {
       const { data: { user } } = await supabase.auth.getUser();
@@ -71,12 +75,10 @@ const Reports = () => {
       const avgTicketSize = invoices.data?.length ? totalRevenue / invoices.data.length : 0;
       const conversionRate = bookings.data?.length ? (bookings.data.filter(b => b.status === "completed").length / bookings.data.length) * 100 : 0;
       
-      // Calculate average rating
       const avgRating = reviews.data?.length 
         ? reviews.data.reduce((sum, r) => sum + r.rating, 0) / reviews.data.length 
         : 0;
 
-      // Calculate repeat customers (customers with more than 1 booking)
       const customerBookings: Record<string, number> = {};
       bookings.data?.forEach(b => {
         customerBookings[b.customer_id] = (customerBookings[b.customer_id] || 0) + 1;
@@ -192,7 +194,6 @@ const Reports = () => {
       const { data: { user } } = await supabase.auth.getUser();
       if (!user) return [];
 
-      // Get last 6 months of data
       const months = [];
       for (let i = 5; i >= 0; i--) {
         const monthStart = startOfMonth(subMonths(new Date(), i));
@@ -226,48 +227,6 @@ const Reports = () => {
       );
 
       return retentionData;
-    }
-  });
-
-  const { data: serviceTrends } = useQuery({
-    queryKey: ["service-trends", dateRange],
-    queryFn: async () => {
-      const { data: { user } } = await supabase.auth.getUser();
-      if (!user) return [];
-
-      // Get last 4 weeks
-      const weeks = [];
-      for (let i = 3; i >= 0; i--) {
-        const weekStart = subDays(new Date(), (i + 1) * 7);
-        const weekEnd = subDays(new Date(), i * 7);
-        weeks.push({ start: weekStart, end: weekEnd, label: `Week ${4 - i}` });
-      }
-
-      const trendData = await Promise.all(
-        weeks.map(async ({ start, end, label }) => {
-          const { data: bookings } = await supabase
-            .from("bookings")
-            .select("services")
-            .eq("user_id", user.id)
-            .gte("booking_date", format(start, "yyyy-MM-dd"))
-            .lte("booking_date", format(end, "yyyy-MM-dd"));
-
-          let totalServices = 0;
-          bookings?.forEach(b => {
-            if (Array.isArray(b.services)) {
-              totalServices += b.services.length;
-            }
-          });
-
-          return {
-            week: label,
-            bookings: bookings?.length || 0,
-            services: totalServices
-          };
-        })
-      );
-
-      return trendData;
     }
   });
 
@@ -329,26 +288,38 @@ const Reports = () => {
 
   const COLORS = ["hsl(var(--primary))", "hsl(var(--accent))", "hsl(var(--success))", "#8884d8", "#82ca9d", "#ffc658", "#ff7c43", "#a855f7"];
 
+  if (isLoading) {
+    return (
+      <DashboardLayout>
+        <div className="flex items-center justify-center h-[60vh]">
+          <CarWashLoader text="Loading reports..." />
+        </div>
+      </DashboardLayout>
+    );
+  }
+
   return (
     <DashboardLayout>
-      <div className="p-6 space-y-6 bg-gradient-to-br from-background via-muted/20 to-background min-h-screen">
-        <div className="flex justify-between items-start">
+      <div className="p-4 md:p-6 space-y-6 min-h-screen overflow-x-hidden">
+        {/* Header */}
+        <div className="flex flex-col md:flex-row justify-between items-start md:items-center gap-4">
           <div>
-            <h1 className="text-3xl font-bold">Reports & Analytics</h1>
-            <p className="text-muted-foreground">Comprehensive business insights and performance metrics</p>
+            <h1 className="text-2xl md:text-3xl font-bold">Reports & Analytics</h1>
+            <p className="text-muted-foreground text-sm md:text-base">Comprehensive business insights and performance metrics</p>
           </div>
-          <Button className="gap-2 shadow-md hover:shadow-lg">
+          <Button className="gap-2 shadow-md hover:shadow-lg w-full md:w-auto">
             <Download className="h-4 w-4" />
             Export Report
           </Button>
         </div>
 
-        <div className="flex gap-4 flex-wrap">
+        {/* Filters */}
+        <div className="flex flex-col sm:flex-row gap-3 flex-wrap">
           <Popover>
             <PopoverTrigger asChild>
-              <Button variant="outline" className="gap-2 shadow-sm">
+              <Button variant="outline" className="gap-2 shadow-sm w-full sm:w-auto justify-start">
                 <CalendarIcon className="h-4 w-4" />
-                {format(dateRange.from, "MMM dd")} - {format(dateRange.to, "MMM dd, yyyy")}
+                <span className="truncate">{format(dateRange.from, "MMM dd")} - {format(dateRange.to, "MMM dd, yyyy")}</span>
               </Button>
             </PopoverTrigger>
             <PopoverContent className="w-auto p-0" align="start">
@@ -363,7 +334,7 @@ const Reports = () => {
           </Popover>
 
           <Select value={selectedDepartment} onValueChange={setSelectedDepartment}>
-            <SelectTrigger className="w-48 shadow-sm">
+            <SelectTrigger className="w-full sm:w-48 shadow-sm">
               <SelectValue placeholder="All Departments" />
             </SelectTrigger>
             <SelectContent>
@@ -375,308 +346,387 @@ const Reports = () => {
           </Select>
         </div>
 
-        {/* KPI Cards - Row 1 */}
-        <div className="grid gap-4 md:grid-cols-2 lg:grid-cols-5">
-          <Card className="shadow-md hover:shadow-lg transition-all border-l-4 border-l-primary">
-            <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
-              <CardTitle className="text-sm font-medium">Total Revenue</CardTitle>
-              <DollarSign className="h-5 w-5 text-primary" />
-            </CardHeader>
-            <CardContent>
-              <div className="text-3xl font-bold text-primary">₹{stats?.totalRevenue?.toLocaleString()}</div>
-              <div className="flex items-center gap-2 mt-2">
-                <div className="text-xs text-success font-semibold">₹{stats?.paidRevenue?.toLocaleString()} Paid</div>
-                <div className="text-xs text-warning">₹{stats?.pendingRevenue?.toLocaleString()} Pending</div>
-              </div>
-            </CardContent>
-          </Card>
+        {/* Tabs */}
+        <Tabs value={activeTab} onValueChange={setActiveTab} className="space-y-6">
+          <TabsList className="w-full justify-start overflow-x-auto flex-nowrap bg-muted/50 p-1 h-auto">
+            <TabsTrigger value="overview" className="gap-2 px-4 py-2.5 data-[state=active]:bg-background">
+              <BarChart3 className="h-4 w-4" />
+              <span className="hidden sm:inline">Overview</span>
+            </TabsTrigger>
+            <TabsTrigger value="revenue" className="gap-2 px-4 py-2.5 data-[state=active]:bg-background">
+              <DollarSign className="h-4 w-4" />
+              <span className="hidden sm:inline">Revenue</span>
+            </TabsTrigger>
+            <TabsTrigger value="customers" className="gap-2 px-4 py-2.5 data-[state=active]:bg-background">
+              <Users className="h-4 w-4" />
+              <span className="hidden sm:inline">Customers</span>
+            </TabsTrigger>
+            <TabsTrigger value="services" className="gap-2 px-4 py-2.5 data-[state=active]:bg-background">
+              <Package className="h-4 w-4" />
+              <span className="hidden sm:inline">Services</span>
+            </TabsTrigger>
+            <TabsTrigger value="staff" className="gap-2 px-4 py-2.5 data-[state=active]:bg-background">
+              <UserCheck className="h-4 w-4" />
+              <span className="hidden sm:inline">Staff</span>
+            </TabsTrigger>
+          </TabsList>
 
-          <Card className="shadow-md hover:shadow-lg transition-all border-l-4 border-l-destructive">
-            <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
-              <CardTitle className="text-sm font-medium">Total Expenses</CardTitle>
-              <Wallet className="h-5 w-5 text-destructive" />
-            </CardHeader>
-            <CardContent>
-              <div className="text-3xl font-bold text-destructive">₹{stats?.totalExpenses?.toLocaleString()}</div>
-              <p className="text-xs text-muted-foreground mt-2">Business expenses</p>
-            </CardContent>
-          </Card>
+          {/* Overview Tab */}
+          <TabsContent value="overview" className="space-y-6">
+            {/* KPI Cards Grid */}
+            <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-5 gap-3 md:gap-4">
+              <Card className="shadow-sm hover:shadow-md transition-all border-l-4 border-l-primary">
+                <CardHeader className="pb-2 px-3 md:px-4">
+                  <CardTitle className="text-xs md:text-sm font-medium text-muted-foreground">Total Revenue</CardTitle>
+                </CardHeader>
+                <CardContent className="px-3 md:px-4">
+                  <div className="text-xl md:text-2xl font-bold text-primary">₹{stats?.totalRevenue?.toLocaleString()}</div>
+                  <div className="flex items-center gap-1 mt-1">
+                    <ArrowUpRight className="h-3 w-3 text-success" />
+                    <span className="text-xs text-success">+12%</span>
+                  </div>
+                </CardContent>
+              </Card>
 
-          <Card className="shadow-md hover:shadow-lg transition-all border-l-4 border-l-success">
-            <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
-              <CardTitle className="text-sm font-medium">Net Profit</CardTitle>
-              <TrendingUp className="h-5 w-5 text-success" />
-            </CardHeader>
-            <CardContent>
-              <div className="text-3xl font-bold text-success">₹{stats?.netProfit?.toLocaleString()}</div>
-              <p className="text-xs text-muted-foreground mt-2">Revenue - Expenses</p>
-            </CardContent>
-          </Card>
+              <Card className="shadow-sm hover:shadow-md transition-all border-l-4 border-l-destructive">
+                <CardHeader className="pb-2 px-3 md:px-4">
+                  <CardTitle className="text-xs md:text-sm font-medium text-muted-foreground">Expenses</CardTitle>
+                </CardHeader>
+                <CardContent className="px-3 md:px-4">
+                  <div className="text-xl md:text-2xl font-bold text-destructive">₹{stats?.totalExpenses?.toLocaleString()}</div>
+                  <div className="flex items-center gap-1 mt-1">
+                    <ArrowDownRight className="h-3 w-3 text-destructive" />
+                    <span className="text-xs text-destructive">-5%</span>
+                  </div>
+                </CardContent>
+              </Card>
 
-          <Card className="shadow-md hover:shadow-lg transition-all border-l-4 border-l-accent">
-            <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
-              <CardTitle className="text-sm font-medium">Avg Rating</CardTitle>
-              <Star className="h-5 w-5 text-accent" />
-            </CardHeader>
-            <CardContent>
-              <div className="text-3xl font-bold text-accent">{stats?.avgRating?.toFixed(1) || "0"} ⭐</div>
-              <p className="text-xs text-muted-foreground mt-2">{stats?.totalReviews} reviews</p>
-            </CardContent>
-          </Card>
+              <Card className="shadow-sm hover:shadow-md transition-all border-l-4 border-l-success">
+                <CardHeader className="pb-2 px-3 md:px-4">
+                  <CardTitle className="text-xs md:text-sm font-medium text-muted-foreground">Net Profit</CardTitle>
+                </CardHeader>
+                <CardContent className="px-3 md:px-4">
+                  <div className="text-xl md:text-2xl font-bold text-success">₹{stats?.netProfit?.toLocaleString()}</div>
+                  <div className="flex items-center gap-1 mt-1">
+                    <ArrowUpRight className="h-3 w-3 text-success" />
+                    <span className="text-xs text-success">+18%</span>
+                  </div>
+                </CardContent>
+              </Card>
 
-          <Card className="shadow-md hover:shadow-lg transition-all border-l-4 border-l-info">
-            <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
-              <CardTitle className="text-sm font-medium">Retention Rate</CardTitle>
-              <Repeat className="h-5 w-5 text-info" />
-            </CardHeader>
-            <CardContent>
-              <div className="text-3xl font-bold text-info">{stats?.retentionRate?.toFixed(0)}%</div>
-              <p className="text-xs text-muted-foreground mt-2">{stats?.repeatCustomers} repeat customers</p>
-            </CardContent>
-          </Card>
-        </div>
+              <Card className="shadow-sm hover:shadow-md transition-all border-l-4 border-l-accent">
+                <CardHeader className="pb-2 px-3 md:px-4">
+                  <CardTitle className="text-xs md:text-sm font-medium text-muted-foreground">Avg Rating</CardTitle>
+                </CardHeader>
+                <CardContent className="px-3 md:px-4">
+                  <div className="text-xl md:text-2xl font-bold text-accent">{stats?.avgRating?.toFixed(1) || "0"} ⭐</div>
+                  <span className="text-xs text-muted-foreground">{stats?.totalReviews} reviews</span>
+                </CardContent>
+              </Card>
 
-        {/* KPI Cards - Row 2 */}
-        <div className="grid gap-4 md:grid-cols-2 lg:grid-cols-5">
-          <Card className="shadow-md hover:shadow-lg transition-all">
-            <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
-              <CardTitle className="text-sm font-medium">Total Customers</CardTitle>
-              <Users className="h-4 w-4 text-muted-foreground" />
-            </CardHeader>
-            <CardContent>
-              <div className="text-2xl font-bold">{stats?.totalCustomers}</div>
-              <p className="text-xs text-muted-foreground">Active customer base</p>
-            </CardContent>
-          </Card>
+              <Card className="shadow-sm hover:shadow-md transition-all border-l-4 border-l-info col-span-2 md:col-span-1">
+                <CardHeader className="pb-2 px-3 md:px-4">
+                  <CardTitle className="text-xs md:text-sm font-medium text-muted-foreground">Retention</CardTitle>
+                </CardHeader>
+                <CardContent className="px-3 md:px-4">
+                  <div className="text-xl md:text-2xl font-bold text-info">{stats?.retentionRate?.toFixed(0)}%</div>
+                  <span className="text-xs text-muted-foreground">{stats?.repeatCustomers} repeat</span>
+                </CardContent>
+              </Card>
+            </div>
 
-          <Card className="shadow-md hover:shadow-lg transition-all">
-            <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
-              <CardTitle className="text-sm font-medium">Total Vehicles</CardTitle>
-              <Car className="h-4 w-4 text-muted-foreground" />
-            </CardHeader>
-            <CardContent>
-              <div className="text-2xl font-bold">{stats?.totalVehicles}</div>
-              <p className="text-xs text-muted-foreground">Registered vehicles</p>
-            </CardContent>
-          </Card>
+            {/* Secondary Stats */}
+            <div className="grid grid-cols-2 md:grid-cols-4 gap-3 md:gap-4">
+              <Card className="shadow-sm">
+                <CardContent className="p-4 flex items-center gap-3">
+                  <div className="p-2 rounded-lg bg-primary/10">
+                    <Users className="h-5 w-5 text-primary" />
+                  </div>
+                  <div>
+                    <p className="text-2xl font-bold">{stats?.totalCustomers}</p>
+                    <p className="text-xs text-muted-foreground">Customers</p>
+                  </div>
+                </CardContent>
+              </Card>
+              <Card className="shadow-sm">
+                <CardContent className="p-4 flex items-center gap-3">
+                  <div className="p-2 rounded-lg bg-accent/10">
+                    <Car className="h-5 w-5 text-accent" />
+                  </div>
+                  <div>
+                    <p className="text-2xl font-bold">{stats?.totalVehicles}</p>
+                    <p className="text-xs text-muted-foreground">Vehicles</p>
+                  </div>
+                </CardContent>
+              </Card>
+              <Card className="shadow-sm">
+                <CardContent className="p-4 flex items-center gap-3">
+                  <div className="p-2 rounded-lg bg-success/10">
+                    <CalendarIcon className="h-5 w-5 text-success" />
+                  </div>
+                  <div>
+                    <p className="text-2xl font-bold">{stats?.completedBookings}/{stats?.totalBookings}</p>
+                    <p className="text-xs text-muted-foreground">Bookings</p>
+                  </div>
+                </CardContent>
+              </Card>
+              <Card className="shadow-sm">
+                <CardContent className="p-4 flex items-center gap-3">
+                  <div className="p-2 rounded-lg bg-warning/10">
+                    <Activity className="h-5 w-5 text-warning" />
+                  </div>
+                  <div>
+                    <p className="text-2xl font-bold">₹{stats?.avgTicketSize?.toFixed(0)}</p>
+                    <p className="text-xs text-muted-foreground">Avg Ticket</p>
+                  </div>
+                </CardContent>
+              </Card>
+            </div>
 
-          <Card className="shadow-md hover:shadow-lg transition-all">
-            <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
-              <CardTitle className="text-sm font-medium">Bookings</CardTitle>
-              <CalendarIcon className="h-4 w-4 text-muted-foreground" />
-            </CardHeader>
-            <CardContent>
-              <div className="text-2xl font-bold">{stats?.completedBookings}/{stats?.totalBookings}</div>
-              <p className="text-xs text-muted-foreground flex items-center gap-2">
-                <span className="text-success">{stats?.completedBookings} completed</span>
-                <span className="text-destructive">{stats?.cancelledBookings} cancelled</span>
-              </p>
-            </CardContent>
-          </Card>
+            {/* Charts */}
+            <div className="grid gap-4 md:grid-cols-2">
+              <Card className="shadow-sm">
+                <CardHeader className="border-b pb-3">
+                  <CardTitle className="flex items-center gap-2 text-base">
+                    <TrendingUp className="h-5 w-5 text-primary" />
+                    Revenue Trend
+                  </CardTitle>
+                  <CardDescription>Daily revenue breakdown</CardDescription>
+                </CardHeader>
+                <CardContent className="pt-4">
+                  <div className="h-[280px] w-full">
+                    <ResponsiveContainer width="100%" height="100%">
+                      <AreaChart data={revenueData}>
+                        <defs>
+                          <linearGradient id="colorPaid" x1="0" y1="0" x2="0" y2="1">
+                            <stop offset="5%" stopColor="hsl(var(--success))" stopOpacity={0.3}/>
+                            <stop offset="95%" stopColor="hsl(var(--success))" stopOpacity={0}/>
+                          </linearGradient>
+                        </defs>
+                        <CartesianGrid strokeDasharray="3 3" stroke="hsl(var(--border))" />
+                        <XAxis dataKey="date" tick={{ fontSize: 10 }} />
+                        <YAxis tick={{ fontSize: 10 }} />
+                        <Tooltip />
+                        <Area type="monotone" dataKey="paid" stroke="hsl(var(--success))" fillOpacity={1} fill="url(#colorPaid)" name="Paid (₹)" />
+                        <Area type="monotone" dataKey="pending" stroke="hsl(var(--warning))" fillOpacity={0.2} fill="hsl(var(--warning))" name="Pending (₹)" />
+                      </AreaChart>
+                    </ResponsiveContainer>
+                  </div>
+                </CardContent>
+              </Card>
 
-          <Card className="shadow-md hover:shadow-lg transition-all">
-            <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
-              <CardTitle className="text-sm font-medium">Avg Ticket Size</CardTitle>
-              <Activity className="h-4 w-4 text-muted-foreground" />
-            </CardHeader>
-            <CardContent>
-              <div className="text-2xl font-bold">₹{stats?.avgTicketSize?.toFixed(0)}</div>
-              <p className="text-xs text-muted-foreground">Per invoice average</p>
-            </CardContent>
-          </Card>
+              <Card className="shadow-sm">
+                <CardHeader className="border-b pb-3">
+                  <CardTitle className="flex items-center gap-2 text-base">
+                    <PieChartIcon className="h-5 w-5 text-destructive" />
+                    Expense Breakdown
+                  </CardTitle>
+                  <CardDescription>By category</CardDescription>
+                </CardHeader>
+                <CardContent className="pt-4">
+                  <div className="h-[280px] w-full">
+                    <ResponsiveContainer width="100%" height="100%">
+                      <PieChart>
+                        <Pie
+                          data={expenseBreakdown}
+                          cx="50%"
+                          cy="50%"
+                          labelLine={false}
+                          label={({ name, percent }) => `${name}: ${(percent * 100).toFixed(0)}%`}
+                          outerRadius={80}
+                          fill="#8884d8"
+                          dataKey="value"
+                        >
+                          {expenseBreakdown?.map((entry, index) => (
+                            <Cell key={`cell-${index}`} fill={COLORS[index % COLORS.length]} />
+                          ))}
+                        </Pie>
+                        <Tooltip formatter={(value: any) => `₹${value.toLocaleString()}`} />
+                      </PieChart>
+                    </ResponsiveContainer>
+                  </div>
+                </CardContent>
+              </Card>
+            </div>
+          </TabsContent>
 
-          <Card className="shadow-md hover:shadow-lg transition-all">
-            <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
-              <CardTitle className="text-sm font-medium">Active Jobs</CardTitle>
-              <Package className="h-4 w-4 text-muted-foreground" />
-            </CardHeader>
-            <CardContent>
-              <div className="text-2xl font-bold">{stats?.inProgressJobs}</div>
-              <p className="text-xs text-muted-foreground">In progress now</p>
-            </CardContent>
-          </Card>
-        </div>
+          {/* Revenue Tab */}
+          <TabsContent value="revenue" className="space-y-6">
+            <div className="grid gap-4 md:grid-cols-3">
+              <Card className="shadow-sm bg-gradient-to-br from-primary/5 to-primary/10">
+                <CardContent className="p-6 text-center">
+                  <DollarSign className="h-10 w-10 mx-auto mb-3 text-primary" />
+                  <p className="text-3xl font-bold text-primary">₹{stats?.totalRevenue?.toLocaleString()}</p>
+                  <p className="text-sm text-muted-foreground mt-1">Total Revenue</p>
+                </CardContent>
+              </Card>
+              <Card className="shadow-sm bg-gradient-to-br from-success/5 to-success/10">
+                <CardContent className="p-6 text-center">
+                  <TrendingUp className="h-10 w-10 mx-auto mb-3 text-success" />
+                  <p className="text-3xl font-bold text-success">₹{stats?.paidRevenue?.toLocaleString()}</p>
+                  <p className="text-sm text-muted-foreground mt-1">Collected</p>
+                </CardContent>
+              </Card>
+              <Card className="shadow-sm bg-gradient-to-br from-warning/5 to-warning/10">
+                <CardContent className="p-6 text-center">
+                  <TrendingDown className="h-10 w-10 mx-auto mb-3 text-warning" />
+                  <p className="text-3xl font-bold text-warning">₹{stats?.pendingRevenue?.toLocaleString()}</p>
+                  <p className="text-sm text-muted-foreground mt-1">Pending</p>
+                </CardContent>
+              </Card>
+            </div>
 
-        {/* Charts Row 1 */}
-        <div className="grid gap-4 md:grid-cols-2">
-          <Card className="shadow-md">
-            <CardHeader className="border-b">
-              <CardTitle className="flex items-center gap-2">
-                <TrendingUp className="h-5 w-5 text-primary" />
-                Revenue Trend
-              </CardTitle>
-            </CardHeader>
-            <CardContent className="pt-6">
-              <ResponsiveContainer width="100%" height={320}>
-                <AreaChart data={revenueData}>
-                  <defs>
-                    <linearGradient id="colorPaid" x1="0" y1="0" x2="0" y2="1">
-                      <stop offset="5%" stopColor="hsl(var(--success))" stopOpacity={0.3}/>
-                      <stop offset="95%" stopColor="hsl(var(--success))" stopOpacity={0}/>
-                    </linearGradient>
-                    <linearGradient id="colorPending" x1="0" y1="0" x2="0" y2="1">
-                      <stop offset="5%" stopColor="hsl(var(--warning))" stopOpacity={0.3}/>
-                      <stop offset="95%" stopColor="hsl(var(--warning))" stopOpacity={0}/>
-                    </linearGradient>
-                  </defs>
-                  <CartesianGrid strokeDasharray="3 3" stroke="hsl(var(--border))" />
-                  <XAxis dataKey="date" tick={{ fontSize: 12 }} />
-                  <YAxis tick={{ fontSize: 12 }} />
-                  <Tooltip />
-                  <Legend />
-                  <Area type="monotone" dataKey="paid" stroke="hsl(var(--success))" fillOpacity={1} fill="url(#colorPaid)" name="Paid (₹)" />
-                  <Area type="monotone" dataKey="pending" stroke="hsl(var(--warning))" fillOpacity={1} fill="url(#colorPending)" name="Pending (₹)" />
-                </AreaChart>
-              </ResponsiveContainer>
-            </CardContent>
-          </Card>
+            <Card className="shadow-sm">
+              <CardHeader className="border-b">
+                <CardTitle>Revenue vs Expenses</CardTitle>
+                <CardDescription>Daily comparison over the selected period</CardDescription>
+              </CardHeader>
+              <CardContent className="pt-6">
+                <div className="h-[350px] w-full">
+                  <ResponsiveContainer width="100%" height="100%">
+                    <AreaChart data={revenueData}>
+                      <defs>
+                        <linearGradient id="colorRevenue" x1="0" y1="0" x2="0" y2="1">
+                          <stop offset="5%" stopColor="hsl(var(--success))" stopOpacity={0.4}/>
+                          <stop offset="95%" stopColor="hsl(var(--success))" stopOpacity={0}/>
+                        </linearGradient>
+                      </defs>
+                      <CartesianGrid strokeDasharray="3 3" stroke="hsl(var(--border))" />
+                      <XAxis dataKey="date" tick={{ fontSize: 11 }} />
+                      <YAxis tick={{ fontSize: 11 }} />
+                      <Tooltip />
+                      <Legend />
+                      <Area type="monotone" dataKey="total" stroke="hsl(var(--success))" fillOpacity={1} fill="url(#colorRevenue)" name="Total Revenue (₹)" />
+                    </AreaChart>
+                  </ResponsiveContainer>
+                </div>
+              </CardContent>
+            </Card>
+          </TabsContent>
 
-          <Card className="shadow-md">
-            <CardHeader className="border-b">
-              <CardTitle className="flex items-center gap-2">
-                <Wallet className="h-5 w-5 text-destructive" />
-                Expense Breakdown
-              </CardTitle>
-            </CardHeader>
-            <CardContent className="pt-6">
-              <ResponsiveContainer width="100%" height={320}>
-                <PieChart>
-                  <Pie
-                    data={expenseBreakdown}
-                    cx="50%"
-                    cy="50%"
-                    labelLine={false}
-                    label={({ name, percent }) => `${name}: ${(percent * 100).toFixed(0)}%`}
-                    outerRadius={100}
-                    fill="#8884d8"
-                    dataKey="value"
-                  >
-                    {expenseBreakdown?.map((entry, index) => (
-                      <Cell key={`cell-${index}`} fill={COLORS[index % COLORS.length]} />
-                    ))}
-                  </Pie>
-                  <Tooltip formatter={(value: any) => `₹${value.toLocaleString()}`} />
-                </PieChart>
-              </ResponsiveContainer>
-            </CardContent>
-          </Card>
-        </div>
+          {/* Customers Tab */}
+          <TabsContent value="customers" className="space-y-6">
+            <div className="grid gap-4 md:grid-cols-2">
+              <Card className="shadow-sm">
+                <CardHeader className="border-b">
+                  <CardTitle className="flex items-center gap-2">
+                    <Repeat className="h-5 w-5 text-info" />
+                    Customer Retention
+                  </CardTitle>
+                  <CardDescription>New vs returning customers by month</CardDescription>
+                </CardHeader>
+                <CardContent className="pt-6">
+                  <div className="h-[300px] w-full">
+                    <ResponsiveContainer width="100%" height="100%">
+                      <BarChart data={customerRetention}>
+                        <CartesianGrid strokeDasharray="3 3" stroke="hsl(var(--border))" />
+                        <XAxis dataKey="month" tick={{ fontSize: 10 }} />
+                        <YAxis tick={{ fontSize: 11 }} />
+                        <Tooltip />
+                        <Legend />
+                        <Bar dataKey="newCustomers" fill="hsl(var(--primary))" name="New" radius={[4, 4, 0, 0]} />
+                        <Bar dataKey="repeatCustomers" fill="hsl(var(--success))" name="Repeat" radius={[4, 4, 0, 0]} />
+                      </BarChart>
+                    </ResponsiveContainer>
+                  </div>
+                </CardContent>
+              </Card>
 
-        {/* Charts Row 2 */}
-        <div className="grid gap-4 md:grid-cols-2">
-          <Card className="shadow-md">
-            <CardHeader className="border-b">
-              <CardTitle className="flex items-center gap-2">
-                <Repeat className="h-5 w-5 text-info" />
-                Customer Retention Trend
-              </CardTitle>
-            </CardHeader>
-            <CardContent className="pt-6">
-              <ResponsiveContainer width="100%" height={320}>
-                <BarChart data={customerRetention}>
-                  <CartesianGrid strokeDasharray="3 3" stroke="hsl(var(--border))" />
-                  <XAxis dataKey="month" tick={{ fontSize: 11 }} />
-                  <YAxis tick={{ fontSize: 12 }} />
-                  <Tooltip />
-                  <Legend />
-                  <Bar dataKey="newCustomers" fill="hsl(var(--primary))" name="New Customers" radius={[4, 4, 0, 0]} />
-                  <Bar dataKey="repeatCustomers" fill="hsl(var(--success))" name="Repeat Customers" radius={[4, 4, 0, 0]} />
-                </BarChart>
-              </ResponsiveContainer>
-            </CardContent>
-          </Card>
+              <Card className="shadow-sm">
+                <CardHeader className="border-b">
+                  <CardTitle className="flex items-center gap-2">
+                    <Star className="h-5 w-5 text-accent" />
+                    Rating Distribution
+                  </CardTitle>
+                  <CardDescription>Customer feedback breakdown</CardDescription>
+                </CardHeader>
+                <CardContent className="pt-6">
+                  <div className="h-[300px] w-full">
+                    <ResponsiveContainer width="100%" height="100%">
+                      <BarChart data={ratingDistribution} layout="vertical">
+                        <CartesianGrid strokeDasharray="3 3" stroke="hsl(var(--border))" />
+                        <XAxis type="number" tick={{ fontSize: 11 }} />
+                        <YAxis dataKey="rating" type="category" tick={{ fontSize: 11 }} width={60} />
+                        <Tooltip />
+                        <Bar dataKey="count" name="Reviews" radius={[0, 4, 4, 0]}>
+                          {ratingDistribution?.map((entry, index) => (
+                            <Cell key={`cell-${index}`} fill={entry.fill} />
+                          ))}
+                        </Bar>
+                      </BarChart>
+                    </ResponsiveContainer>
+                  </div>
+                </CardContent>
+              </Card>
+            </div>
+          </TabsContent>
 
-          <Card className="shadow-md">
-            <CardHeader className="border-b">
-              <CardTitle className="flex items-center gap-2">
-                <Package className="h-5 w-5 text-primary" />
-                Service Popularity
-              </CardTitle>
-            </CardHeader>
-            <CardContent className="pt-6">
-              <ResponsiveContainer width="100%" height={320}>
-                <BarChart data={serviceData} layout="vertical">
-                  <CartesianGrid strokeDasharray="3 3" stroke="hsl(var(--border))" />
-                  <XAxis type="number" tick={{ fontSize: 12 }} />
-                  <YAxis dataKey="name" type="category" tick={{ fontSize: 11 }} width={100} />
-                  <Tooltip />
-                  <Bar dataKey="value" fill="hsl(var(--primary))" name="Bookings" radius={[0, 4, 4, 0]} />
-                </BarChart>
-              </ResponsiveContainer>
-            </CardContent>
-          </Card>
-        </div>
+          {/* Services Tab */}
+          <TabsContent value="services" className="space-y-6">
+            <Card className="shadow-sm">
+              <CardHeader className="border-b">
+                <CardTitle className="flex items-center gap-2">
+                  <Package className="h-5 w-5 text-primary" />
+                  Service Popularity
+                </CardTitle>
+                <CardDescription>Most booked services in the selected period</CardDescription>
+              </CardHeader>
+              <CardContent className="pt-6">
+                <div className="h-[400px] w-full">
+                  <ResponsiveContainer width="100%" height="100%">
+                    <BarChart data={serviceData} layout="vertical">
+                      <CartesianGrid strokeDasharray="3 3" stroke="hsl(var(--border))" />
+                      <XAxis type="number" tick={{ fontSize: 11 }} />
+                      <YAxis dataKey="name" type="category" tick={{ fontSize: 11 }} width={120} />
+                      <Tooltip />
+                      <Bar dataKey="value" fill="hsl(var(--primary))" name="Bookings" radius={[0, 8, 8, 0]}>
+                        {serviceData?.map((entry, index) => (
+                          <Cell key={`cell-${index}`} fill={COLORS[index % COLORS.length]} />
+                        ))}
+                      </Bar>
+                    </BarChart>
+                  </ResponsiveContainer>
+                </div>
+              </CardContent>
+            </Card>
+          </TabsContent>
 
-        {/* Charts Row 3 */}
-        <div className="grid gap-4 md:grid-cols-3">
-          <Card className="shadow-md">
-            <CardHeader className="border-b">
-              <CardTitle className="flex items-center gap-2">
-                <Star className="h-5 w-5 text-accent" />
-                Rating Distribution
-              </CardTitle>
-            </CardHeader>
-            <CardContent className="pt-6">
-              <ResponsiveContainer width="100%" height={280}>
-                <BarChart data={ratingDistribution} layout="vertical">
-                  <CartesianGrid strokeDasharray="3 3" stroke="hsl(var(--border))" />
-                  <XAxis type="number" tick={{ fontSize: 12 }} />
-                  <YAxis dataKey="rating" type="category" tick={{ fontSize: 11 }} width={60} />
-                  <Tooltip />
-                  <Bar dataKey="count" name="Reviews" radius={[0, 4, 4, 0]}>
-                    {ratingDistribution?.map((entry, index) => (
-                      <Cell key={`cell-${index}`} fill={entry.fill} />
-                    ))}
-                  </Bar>
-                </BarChart>
-              </ResponsiveContainer>
-            </CardContent>
-          </Card>
-
-          <Card className="shadow-md">
-            <CardHeader className="border-b">
-              <CardTitle className="flex items-center gap-2">
-                <BarChart3 className="h-5 w-5 text-primary" />
-                Weekly Service Trends
-              </CardTitle>
-            </CardHeader>
-            <CardContent className="pt-6">
-              <ResponsiveContainer width="100%" height={280}>
-                <LineChart data={serviceTrends}>
-                  <CartesianGrid strokeDasharray="3 3" stroke="hsl(var(--border))" />
-                  <XAxis dataKey="week" tick={{ fontSize: 12 }} />
-                  <YAxis tick={{ fontSize: 12 }} />
-                  <Tooltip />
-                  <Legend />
-                  <Line type="monotone" dataKey="bookings" stroke="hsl(var(--primary))" strokeWidth={2} name="Bookings" />
-                  <Line type="monotone" dataKey="services" stroke="hsl(var(--accent))" strokeWidth={2} name="Services" />
-                </LineChart>
-              </ResponsiveContainer>
-            </CardContent>
-          </Card>
-
-          <Card className="shadow-md">
-            <CardHeader className="border-b">
-              <CardTitle className="flex items-center gap-2">
-                <UserCheck className="h-5 w-5 text-primary" />
-                Staff Performance
-              </CardTitle>
-            </CardHeader>
-            <CardContent className="pt-6">
-              <ResponsiveContainer width="100%" height={280}>
-                <BarChart data={staffPerformance} layout="vertical">
-                  <CartesianGrid strokeDasharray="3 3" stroke="hsl(var(--border))" />
-                  <XAxis type="number" tick={{ fontSize: 12 }} />
-                  <YAxis dataKey="name" type="category" tick={{ fontSize: 11 }} width={80} />
-                  <Tooltip />
-                  <Legend />
-                  <Bar dataKey="completed" fill="hsl(var(--success))" name="Completed" radius={[0, 4, 4, 0]} />
-                  <Bar dataKey="total" fill="hsl(var(--muted))" name="Total" radius={[0, 4, 4, 0]} />
-                </BarChart>
-              </ResponsiveContainer>
-            </CardContent>
-          </Card>
-        </div>
+          {/* Staff Tab */}
+          <TabsContent value="staff" className="space-y-6">
+            <Card className="shadow-sm">
+              <CardHeader className="border-b">
+                <CardTitle className="flex items-center gap-2">
+                  <UserCheck className="h-5 w-5 text-primary" />
+                  Staff Performance
+                </CardTitle>
+                <CardDescription>Jobs completed by staff members</CardDescription>
+              </CardHeader>
+              <CardContent className="pt-6">
+                {staffPerformance && staffPerformance.length > 0 ? (
+                  <div className="h-[350px] w-full">
+                    <ResponsiveContainer width="100%" height="100%">
+                      <BarChart data={staffPerformance} layout="vertical">
+                        <CartesianGrid strokeDasharray="3 3" stroke="hsl(var(--border))" />
+                        <XAxis type="number" tick={{ fontSize: 11 }} />
+                        <YAxis dataKey="name" type="category" tick={{ fontSize: 11 }} width={100} />
+                        <Tooltip />
+                        <Legend />
+                        <Bar dataKey="completed" fill="hsl(var(--success))" name="Completed" radius={[0, 4, 4, 0]} />
+                        <Bar dataKey="total" fill="hsl(var(--muted))" name="Total Assigned" radius={[0, 4, 4, 0]} />
+                      </BarChart>
+                    </ResponsiveContainer>
+                  </div>
+                ) : (
+                  <div className="text-center py-12 text-muted-foreground">
+                    <UserCheck className="h-12 w-12 mx-auto mb-4 opacity-50" />
+                    <p>No staff performance data available</p>
+                    <p className="text-sm mt-1">Assign staff to job cards to track performance</p>
+                  </div>
+                )}
+              </CardContent>
+            </Card>
+          </TabsContent>
+        </Tabs>
       </div>
     </DashboardLayout>
   );

@@ -56,7 +56,7 @@ const menuItems = [
 ];
 
 export function AppSidebar() {
-  const { state, setOpen } = useSidebar();
+  const { state } = useSidebar();
   const isCollapsed = state === "collapsed";
   const navigate = useNavigate();
   const location = useLocation();
@@ -64,11 +64,12 @@ export function AppSidebar() {
   const handleNavClick = useCallback((url: string, e: React.MouseEvent) => {
     e.preventDefault();
     e.stopPropagation();
+    // Simply navigate without affecting sidebar state
     navigate(url);
   }, [navigate]);
 
   return (
-    <Sidebar collapsible="icon" className="border-r border-sidebar-border bg-sidebar">
+    <Sidebar collapsible="icon" className="border-r border-sidebar-border bg-sidebar [&::-webkit-scrollbar]:hidden [-ms-overflow-style:none] [scrollbar-width:none]">
       <SidebarHeader className="border-b border-sidebar-border p-4 relative overflow-hidden">
         {/* Decorative bubbles */}
         <div className="absolute -right-4 -top-4 text-sidebar-primary opacity-20">
@@ -87,7 +88,7 @@ export function AppSidebar() {
         </div>
       </SidebarHeader>
 
-      <SidebarContent className="relative">
+      <SidebarContent className="relative overflow-y-auto [&::-webkit-scrollbar]:hidden [-ms-overflow-style:none] [scrollbar-width:none]">
         {/* Background car decoration */}
         {!isCollapsed && (
           <div className="absolute bottom-20 left-1/2 -translate-x-1/2 text-sidebar-primary opacity-10 pointer-events-none">

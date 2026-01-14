@@ -58,23 +58,34 @@ const BookingDetail = () => {
     }
   });
 
-  // Get lifecycle stages from selected services
-  const getLifecycleStages = (): string[] => {
-    if (!booking?.services || !Array.isArray(booking.services)) {
-      return ["check_in", "pre_wash", "foam_wash", "interior", "polishing", "qc", "completed", "delivered"];
-    }
+  // Valid job_status enum values from database
+  const validJobStatuses = ["check_in", "pre_wash", "foam_wash", "interior", "polishing", "qc", "completed", "delivered"];
 
-    const bookingServiceIds = booking.services.map((s: any) => s.id);
-    const matchingServices = services?.filter(s => bookingServiceIds.includes(s.id));
-    
-    if (matchingServices && matchingServices.length > 0) {
-      const firstService = matchingServices[0];
-      if (firstService.lifecycle_stages && Array.isArray(firstService.lifecycle_stages)) {
-        return firstService.lifecycle_stages as string[];
-      }
+  // Get lifecycle stages from selected services - must be valid enum values
+  const getLifecycleStages = (): string[] => {
+    return validJobStatuses;
+  };
+
+  // Map any status to a valid enum value
+  const mapToValidStatus = (status: string): string => {
+    const normalized = status.toLowerCase().replace(/\s+/g, '_');
+    if (validJobStatuses.includes(normalized)) {
+      return normalized;
     }
-    
-    return ["check_in", "pre_wash", "foam_wash", "interior", "polishing", "qc", "completed", "delivered"];
+    // Fallback mapping for common custom names
+    const mapping: Record<string, string> = {
+      'vehicle_in': 'check_in',
+      'vehicle in': 'check_in',
+      'checkin': 'check_in',
+      'check in': 'check_in',
+      'washing': 'foam_wash',
+      'drying': 'interior',
+      'finish': 'completed',
+      'finished': 'completed',
+      'done': 'completed',
+      'deliver': 'delivered',
+    };
+    return mapping[normalized] || mapping[status.toLowerCase()] || 'check_in';
   };
 
   const lifecycleStages = getLifecycleStages();
@@ -85,6 +96,10 @@ const BookingDetail = () => {
       const { data: { user } } = await supabase.auth.getUser();
       if (!user) throw new Error("Not authenticated");
 
+      // Map to valid enum status
+      const validStatus = mapToValidStatus(newStatus);
+      console.log("Updating job card status:", { original: newStatus, mapped: validStatus });
+
       if (!jobCard) {
         const { error } = await supabase.from("job_cards").insert({
           user_id: user.id,
@@ -92,16 +107,16 @@ const BookingDetail = () => {
           customer_id: booking?.customer_id,
           vehicle_id: booking?.vehicle_id,
           services: booking?.services,
-          status: newStatus as any,
-          check_in_time: newStatus === "check_in" ? new Date().toISOString() : null
+          status: validStatus as any,
+          check_in_time: validStatus === "check_in" ? new Date().toISOString() : null
         });
         if (error) throw error;
       } else {
-        const updateData: any = { status: newStatus };
-        if (newStatus === "check_in") {
+        const updateData: any = { status: validStatus };
+        if (validStatus === "check_in") {
           updateData.check_in_time = new Date().toISOString();
         }
-        if (newStatus === "delivered") {
+        if (validStatus === "delivered") {
           updateData.check_out_time = new Date().toISOString();
         }
 
@@ -115,9 +130,9 @@ const BookingDetail = () => {
       // Update booking status based on job card status
       type BookingStatus = "pending" | "confirmed" | "in_progress" | "completed" | "cancelled";
       let bookingStatus: BookingStatus = "confirmed";
-      if (["check_in", "pre_wash", "foam_wash", "interior", "polishing", "qc"].includes(newStatus)) {
+      if (["check_in", "pre_wash", "foam_wash", "interior", "polishing", "qc"].includes(validStatus)) {
         bookingStatus = "in_progress";
-      } else if (newStatus === "completed" || newStatus === "delivered") {
+      } else if (validStatus === "completed" || validStatus === "delivered") {
         bookingStatus = "completed";
       }
 
