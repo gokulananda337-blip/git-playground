@@ -18,7 +18,7 @@ import { format, startOfDay, isBefore } from "date-fns";
 import { 
   Phone, Mail, MapPin, Clock, Star, Sparkles, Calendar as CalendarIcon, 
   ChevronRight, Car, Droplets, CheckCircle2, MessageCircle, Facebook, Instagram,
-  Users, Award, Shield, Zap
+  Users, Award, Shield, Zap, Plus
 } from "lucide-react";
 
 interface LandingConfig {
@@ -61,6 +61,11 @@ export default function PublicLanding() {
   const [submitting, setSubmitting] = useState(false);
   const [stats, setStats] = useState({ customers: 0, vehicles: 0, reviews: 0, avgRating: 0 });
   const [todayBookingsCount, setTodayBookingsCount] = useState(0);
+  const [isExistingCustomer, setIsExistingCustomer] = useState<boolean | null>(null);
+  const [checkingCustomer, setCheckingCustomer] = useState(false);
+  const [foundCustomer, setFoundCustomer] = useState<any>(null);
+  const [foundVehicles, setFoundVehicles] = useState<any[]>([]);
+  const [selectedVehicleId, setSelectedVehicleId] = useState("");
   const [customerForm, setCustomerForm] = useState({
     name: "",
     phone: "",
@@ -187,22 +192,81 @@ export default function PublicLanding() {
     setBookingTime("");
   };
 
+  const checkExistingCustomer = async () => {
+    if (!config || !customerForm.phone || customerForm.phone.length < 10) {
+      toast({ title: "Please enter a valid phone number", variant: "destructive" });
+      return;
+    }
+    
+    setCheckingCustomer(true);
+    try {
+      const { data: customer } = await supabase
+        .from("customers")
+        .select("*")
+        .eq("phone", customerForm.phone)
+        .eq("user_id", config.user_id)
+        .maybeSingle();
+
+      if (customer) {
+        setFoundCustomer(customer);
+        setCustomerForm(prev => ({
+          ...prev,
+          name: customer.name,
+          email: customer.email || ""
+        }));
+        
+        // Fetch vehicles
+        const { data: vehicles } = await supabase
+          .from("vehicles")
+          .select("*")
+          .eq("customer_id", customer.id);
+        
+        setFoundVehicles(vehicles || []);
+        toast({ title: "Welcome back!", description: `Found your account: ${customer.name}` });
+      } else {
+        setFoundCustomer(null);
+        setFoundVehicles([]);
+        toast({ title: "New customer", description: "Please fill in your details below" });
+        setIsExistingCustomer(false);
+      }
+    } catch (error) {
+      console.error("Error checking customer:", error);
+    } finally {
+      setCheckingCustomer(false);
+    }
+  };
+
   const handleBooking = async () => {
     if (!config || submitting) return;
     setSubmitting(true);
 
     try {
-      // Create or find customer
-      const { data: existingCustomer } = await supabase
-        .from("customers")
-        .select("id")
-        .eq("phone", customerForm.phone)
-        .eq("user_id", config.user_id)
-        .maybeSingle();
+      let customerId = foundCustomer?.id;
+      let vehicleId = selectedVehicleId;
 
-      let customerId = existingCustomer?.id;
+      // If existing customer with selected vehicle
+      if (foundCustomer && selectedVehicleId) {
+        // Use existing customer and vehicle
+      } else if (foundCustomer && !selectedVehicleId) {
+        // Existing customer, new vehicle
+        const { data: newVehicle, error: vehicleError } = await supabase
+          .from("vehicles")
+          .insert({
+            customer_id: customerId,
+            user_id: config.user_id,
+            vehicle_number: customerForm.vehicle_number.toUpperCase(),
+            vehicle_type: customerForm.vehicle_type as any,
+            brand: customerForm.brand || null,
+            model: customerForm.model || null,
+            color: customerForm.color || null
+          })
+          .select()
+          .single();
 
-      if (!customerId) {
+        if (vehicleError) throw vehicleError;
+        vehicleId = newVehicle.id;
+      } else {
+        // New customer
         const { data: newCustomer, error: customerError } = await supabase
           .from("customers")
           .insert({
@@ -216,24 +280,25 @@ export default function PublicLanding() {
 
         if (customerError) throw customerError;
         customerId = newCustomer.id;
+
+        // Create vehicle
+        const { data: vehicle, error: vehicleError } = await supabase
+          .from("vehicles")
+          .insert({
+            customer_id: customerId,
+            user_id: config.user_id,
+            vehicle_number: customerForm.vehicle_number.toUpperCase(),
+            vehicle_type: customerForm.vehicle_type as any,
+            brand: customerForm.brand || null,
+            model: customerForm.model || null,
+            color: customerForm.color || null
+          })
+          .select()
+          .single();
+
+        if (vehicleError) throw vehicleError;
+        vehicleId = vehicle.id;
       }
-
-      // Create vehicle
-      const { data: vehicle, error: vehicleError } = await supabase
-        .from("vehicles")
-        .insert({
-          customer_id: customerId,
-          user_id: config.user_id,
-          vehicle_number: customerForm.vehicle_number.toUpperCase(),
-          vehicle_type: customerForm.vehicle_type as any,
-          brand: customerForm.brand || null,
-          model: customerForm.model || null,
-          color: customerForm.color || null
-        })
-        .select()
-        .single();
-
-      if (vehicleError) throw vehicleError;
 
       // Get selected service details
       const selectedServiceDetails = services.filter(s => selectedServices.includes(s.id)).map(s => ({
@@ -251,7 +316,7 @@ export default function PublicLanding() {
         .from("bookings")
         .insert({
           customer_id: customerId,
-          vehicle_id: vehicle.id,
+          vehicle_id: vehicleId,
           user_id: config.user_id,
           booking_date: format(bookingDate!, "yyyy-MM-dd"),
           booking_time: bookingTimeValue,
@@ -272,6 +337,10 @@ export default function PublicLanding() {
       setBookingDate(undefined);
       setBookingTime("");
       setSelectedServices([]);
+      setIsExistingCustomer(null);
+      setFoundCustomer(null);
+      setFoundVehicles([]);
+      setSelectedVehicleId("");
       setCustomerForm({ 
         name: "", phone: "", email: "", vehicle_number: "", 
         vehicle_type: "sedan", brand: "", model: "", color: "", notes: "" 
@@ -766,106 +835,297 @@ export default function PublicLanding() {
 
           {bookingStep === 3 && (
             <div className="space-y-4">
-              <h3 className="font-semibold">Your Details</h3>
-              <div className="grid gap-4">
-                <div className="grid grid-cols-2 gap-4">
-                  <div>
-                    <Label>Name *</Label>
-                    <Input 
-                      value={customerForm.name} 
-                      onChange={(e) => setCustomerForm({ ...customerForm, name: e.target.value })}
-                      placeholder="John Doe"
-                    />
+              {/* Step 3a: Ask if existing or new customer */}
+              {isExistingCustomer === null && !foundCustomer && (
+                <div className="space-y-4">
+                  <h3 className="font-semibold text-center">Are you an existing customer?</h3>
+                  <p className="text-sm text-muted-foreground text-center">
+                    If you've booked with us before, enter your phone number to quickly access your details
+                  </p>
+                  
+                  <div className="p-4 border rounded-lg space-y-3">
+                    <Label>Phone Number *</Label>
+                    <div className="flex gap-2">
+                      <Input 
+                        value={customerForm.phone} 
+                        onChange={(e) => setCustomerForm({ ...customerForm, phone: e.target.value })}
+                        placeholder="+91 98765 43210"
+                        className="flex-1"
+                      />
+                      <Button 
+                        onClick={checkExistingCustomer}
+                        disabled={checkingCustomer || customerForm.phone.length < 10}
+                        style={{ background: primaryColor }}
+                      >
+                        {checkingCustomer ? "Checking..." : "Continue"}
+                      </Button>
+                    </div>
                   </div>
-                  <div>
-                    <Label>Phone *</Label>
-                    <Input 
-                      value={customerForm.phone} 
-                      onChange={(e) => setCustomerForm({ ...customerForm, phone: e.target.value })}
-                      placeholder="+91 98765 43210"
-                    />
+                  
+                  <div className="text-center">
+                    <Button 
+                      variant="link" 
+                      onClick={() => setIsExistingCustomer(false)}
+                      className="text-sm"
+                    >
+                      I'm a new customer → Fill complete details
+                    </Button>
                   </div>
-                </div>
-                <div>
-                  <Label>Email</Label>
-                  <Input 
-                    type="email"
-                    value={customerForm.email} 
-                    onChange={(e) => setCustomerForm({ ...customerForm, email: e.target.value })}
-                    placeholder="john@example.com"
-                  />
-                </div>
-                <div className="grid grid-cols-2 gap-4">
-                  <div>
-                    <Label>Vehicle Number *</Label>
-                    <Input 
-                      value={customerForm.vehicle_number} 
-                      onChange={(e) => setCustomerForm({ ...customerForm, vehicle_number: e.target.value.toUpperCase() })}
-                      placeholder="KA 01 AB 1234"
-                    />
-                  </div>
-                  <div>
-                    <Label>Vehicle Type</Label>
-                    <Select value={customerForm.vehicle_type} onValueChange={(v) => setCustomerForm({ ...customerForm, vehicle_type: v })}>
-                      <SelectTrigger>
-                        <SelectValue />
-                      </SelectTrigger>
-                      <SelectContent>
-                        <SelectItem value="hatchback">Hatchback</SelectItem>
-                        <SelectItem value="sedan">Sedan</SelectItem>
-                        <SelectItem value="suv">SUV</SelectItem>
-                        <SelectItem value="luxury">Luxury</SelectItem>
-                        <SelectItem value="bike">Bike</SelectItem>
-                      </SelectContent>
-                    </Select>
+                  
+                  <div className="flex justify-between pt-4 border-t">
+                    <Button variant="outline" onClick={() => setBookingStep(2)}>Back</Button>
                   </div>
                 </div>
-                <div className="grid grid-cols-3 gap-4">
+              )}
+
+              {/* Step 3b: Found existing customer - show their details for confirmation */}
+              {foundCustomer && (
+                <div className="space-y-4">
+                  <h3 className="font-semibold">Welcome back, {foundCustomer.name}!</h3>
+                  
+                  <Card className="border-2" style={{ borderColor: primaryColor }}>
+                    <CardContent className="p-4 space-y-2">
+                      <div className="flex items-center gap-2">
+                        <Badge style={{ background: primaryColor }}>Your Info</Badge>
+                      </div>
+                      <p className="font-medium">{foundCustomer.name}</p>
+                      <p className="text-sm text-muted-foreground">{foundCustomer.phone}</p>
+                      {foundCustomer.email && <p className="text-sm text-muted-foreground">{foundCustomer.email}</p>}
+                    </CardContent>
+                  </Card>
+
+                  {foundVehicles.length > 0 && (
+                    <div className="space-y-2">
+                      <Label>Select your vehicle or add a new one:</Label>
+                      <div className="space-y-2">
+                        {foundVehicles.map((vehicle) => (
+                          <label
+                            key={vehicle.id}
+                            className={cn(
+                              "flex items-center gap-3 p-3 rounded-lg border cursor-pointer transition-all hover:border-primary/50",
+                              selectedVehicleId === vehicle.id && "border-2"
+                            )}
+                            style={selectedVehicleId === vehicle.id ? { borderColor: primaryColor, background: `${primaryColor}10` } : {}}
+                          >
+                            <input
+                              type="radio"
+                              name="vehicle"
+                              checked={selectedVehicleId === vehicle.id}
+                              onChange={() => setSelectedVehicleId(vehicle.id)}
+                              className="rounded"
+                            />
+                            <Car className="h-5 w-5 text-muted-foreground" />
+                            <div>
+                              <p className="font-medium">{vehicle.vehicle_number}</p>
+                              <p className="text-xs text-muted-foreground capitalize">
+                                {vehicle.brand} {vehicle.model} • {vehicle.vehicle_type}
+                              </p>
+                            </div>
+                          </label>
+                        ))}
+                        <label
+                          className={cn(
+                            "flex items-center gap-3 p-3 rounded-lg border cursor-pointer transition-all hover:border-primary/50",
+                            selectedVehicleId === "" && "border-2"
+                          )}
+                          style={selectedVehicleId === "" ? { borderColor: primaryColor, background: `${primaryColor}10` } : {}}
+                        >
+                          <input
+                            type="radio"
+                            name="vehicle"
+                            checked={selectedVehicleId === ""}
+                            onChange={() => setSelectedVehicleId("")}
+                            className="rounded"
+                          />
+                          <Plus className="h-5 w-5" style={{ color: primaryColor }} />
+                          <span className="font-medium">Add a new vehicle</span>
+                        </label>
+                      </div>
+                    </div>
+                  )}
+
+                  {/* New vehicle form for existing customer */}
+                  {(foundVehicles.length === 0 || selectedVehicleId === "") && (
+                    <div className="space-y-3 p-4 border rounded-lg bg-muted/20">
+                      <Label className="font-semibold">New Vehicle Details</Label>
+                      <div className="grid grid-cols-2 gap-4">
+                        <div>
+                          <Label>Vehicle Number *</Label>
+                          <Input 
+                            value={customerForm.vehicle_number} 
+                            onChange={(e) => setCustomerForm({ ...customerForm, vehicle_number: e.target.value.toUpperCase() })}
+                            placeholder="KA 01 AB 1234"
+                          />
+                        </div>
+                        <div>
+                          <Label>Vehicle Type</Label>
+                          <Select value={customerForm.vehicle_type} onValueChange={(v) => setCustomerForm({ ...customerForm, vehicle_type: v })}>
+                            <SelectTrigger>
+                              <SelectValue />
+                            </SelectTrigger>
+                            <SelectContent>
+                              <SelectItem value="hatchback">Hatchback</SelectItem>
+                              <SelectItem value="sedan">Sedan</SelectItem>
+                              <SelectItem value="suv">SUV</SelectItem>
+                              <SelectItem value="luxury">Luxury</SelectItem>
+                              <SelectItem value="bike">Bike</SelectItem>
+                            </SelectContent>
+                          </Select>
+                        </div>
+                      </div>
+                      <div className="grid grid-cols-3 gap-4">
+                        <Input 
+                          value={customerForm.brand} 
+                          onChange={(e) => setCustomerForm({ ...customerForm, brand: e.target.value })}
+                          placeholder="Brand"
+                        />
+                        <Input 
+                          value={customerForm.model} 
+                          onChange={(e) => setCustomerForm({ ...customerForm, model: e.target.value })}
+                          placeholder="Model"
+                        />
+                        <Input 
+                          value={customerForm.color} 
+                          onChange={(e) => setCustomerForm({ ...customerForm, color: e.target.value })}
+                          placeholder="Color"
+                        />
+                      </div>
+                    </div>
+                  )}
+
                   <div>
-                    <Label>Brand</Label>
-                    <Input 
-                      value={customerForm.brand} 
-                      onChange={(e) => setCustomerForm({ ...customerForm, brand: e.target.value })}
-                      placeholder="Toyota"
+                    <Label>Notes (optional)</Label>
+                    <Textarea 
+                      value={customerForm.notes} 
+                      onChange={(e) => setCustomerForm({ ...customerForm, notes: e.target.value })}
+                      placeholder="Any special requests..."
+                      rows={2}
                     />
                   </div>
-                  <div>
-                    <Label>Model</Label>
-                    <Input 
-                      value={customerForm.model} 
-                      onChange={(e) => setCustomerForm({ ...customerForm, model: e.target.value })}
-                      placeholder="Camry"
-                    />
-                  </div>
-                  <div>
-                    <Label>Color</Label>
-                    <Input 
-                      value={customerForm.color} 
-                      onChange={(e) => setCustomerForm({ ...customerForm, color: e.target.value })}
-                      placeholder="Silver"
-                    />
+
+                  <div className="flex justify-between pt-4 border-t">
+                    <Button variant="outline" onClick={() => {
+                      setFoundCustomer(null);
+                      setFoundVehicles([]);
+                      setSelectedVehicleId("");
+                      setIsExistingCustomer(null);
+                    }}>Back</Button>
+                    <Button 
+                      onClick={handleBooking} 
+                      disabled={(!selectedVehicleId && !customerForm.vehicle_number) || submitting}
+                      style={{ background: primaryColor }}
+                    >
+                      {submitting ? "Booking..." : "Confirm Booking"}
+                    </Button>
                   </div>
                 </div>
-                <div>
-                  <Label>Notes</Label>
-                  <Textarea 
-                    value={customerForm.notes} 
-                    onChange={(e) => setCustomerForm({ ...customerForm, notes: e.target.value })}
-                    placeholder="Any special requests..."
-                    rows={2}
-                  />
+              )}
+
+              {/* Step 3c: New customer - full form */}
+              {isExistingCustomer === false && !foundCustomer && (
+                <div className="space-y-4">
+                  <h3 className="font-semibold">Your Details</h3>
+                  <div className="grid gap-4">
+                    <div className="grid grid-cols-2 gap-4">
+                      <div>
+                        <Label>Name *</Label>
+                        <Input 
+                          value={customerForm.name} 
+                          onChange={(e) => setCustomerForm({ ...customerForm, name: e.target.value })}
+                          placeholder="John Doe"
+                        />
+                      </div>
+                      <div>
+                        <Label>Phone *</Label>
+                        <Input 
+                          value={customerForm.phone} 
+                          onChange={(e) => setCustomerForm({ ...customerForm, phone: e.target.value })}
+                          placeholder="+91 98765 43210"
+                        />
+                      </div>
+                    </div>
+                    <div>
+                      <Label>Email</Label>
+                      <Input 
+                        type="email"
+                        value={customerForm.email} 
+                        onChange={(e) => setCustomerForm({ ...customerForm, email: e.target.value })}
+                        placeholder="john@example.com"
+                      />
+                    </div>
+                    <div className="grid grid-cols-2 gap-4">
+                      <div>
+                        <Label>Vehicle Number *</Label>
+                        <Input 
+                          value={customerForm.vehicle_number} 
+                          onChange={(e) => setCustomerForm({ ...customerForm, vehicle_number: e.target.value.toUpperCase() })}
+                          placeholder="KA 01 AB 1234"
+                        />
+                      </div>
+                      <div>
+                        <Label>Vehicle Type</Label>
+                        <Select value={customerForm.vehicle_type} onValueChange={(v) => setCustomerForm({ ...customerForm, vehicle_type: v })}>
+                          <SelectTrigger>
+                            <SelectValue />
+                          </SelectTrigger>
+                          <SelectContent>
+                            <SelectItem value="hatchback">Hatchback</SelectItem>
+                            <SelectItem value="sedan">Sedan</SelectItem>
+                            <SelectItem value="suv">SUV</SelectItem>
+                            <SelectItem value="luxury">Luxury</SelectItem>
+                            <SelectItem value="bike">Bike</SelectItem>
+                          </SelectContent>
+                        </Select>
+                      </div>
+                    </div>
+                    <div className="grid grid-cols-3 gap-4">
+                      <div>
+                        <Label>Brand</Label>
+                        <Input 
+                          value={customerForm.brand} 
+                          onChange={(e) => setCustomerForm({ ...customerForm, brand: e.target.value })}
+                          placeholder="Toyota"
+                        />
+                      </div>
+                      <div>
+                        <Label>Model</Label>
+                        <Input 
+                          value={customerForm.model} 
+                          onChange={(e) => setCustomerForm({ ...customerForm, model: e.target.value })}
+                          placeholder="Camry"
+                        />
+                      </div>
+                      <div>
+                        <Label>Color</Label>
+                        <Input 
+                          value={customerForm.color} 
+                          onChange={(e) => setCustomerForm({ ...customerForm, color: e.target.value })}
+                          placeholder="Silver"
+                        />
+                      </div>
+                    </div>
+                    <div>
+                      <Label>Notes</Label>
+                      <Textarea 
+                        value={customerForm.notes} 
+                        onChange={(e) => setCustomerForm({ ...customerForm, notes: e.target.value })}
+                        placeholder="Any special requests..."
+                        rows={2}
+                      />
+                    </div>
+                  </div>
+                  <div className="flex justify-between pt-4 border-t">
+                    <Button variant="outline" onClick={() => setIsExistingCustomer(null)}>Back</Button>
+                    <Button 
+                      onClick={handleBooking} 
+                      disabled={!customerForm.name || !customerForm.phone || !customerForm.vehicle_number || submitting}
+                      style={{ background: primaryColor }}
+                    >
+                      {submitting ? "Booking..." : "Confirm Booking"}
+                    </Button>
+                  </div>
                 </div>
-              </div>
-              <div className="flex justify-between pt-4 border-t">
-                <Button variant="outline" onClick={() => setBookingStep(2)}>Back</Button>
-                <Button 
-                  onClick={handleBooking} 
-                  disabled={!customerForm.name || !customerForm.phone || !customerForm.vehicle_number || submitting}
-                  style={{ background: primaryColor }}
-                >
-                  {submitting ? "Booking..." : "Confirm Booking"}
-                </Button>
-              </div>
+              )}
             </div>
           )}
         </DialogContent>

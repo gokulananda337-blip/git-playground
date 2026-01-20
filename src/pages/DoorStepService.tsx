@@ -27,7 +27,7 @@ const DoorStepService = () => {
     delivery_address: "",
     estimated_pickup_time: "",
     estimated_delivery_time: "",
-    assigned_staff_id: "",
+    employee_name: "",
     notes: ""
   });
 
@@ -72,17 +72,6 @@ const DoorStepService = () => {
     }
   });
 
-  const { data: staff } = useQuery({
-    queryKey: ["staff"],
-    queryFn: async () => {
-      const { data, error } = await supabase
-        .from("profiles")
-        .select("id, full_name, phone")
-        .order("full_name");
-      if (error) throw error;
-      return data;
-    }
-  });
 
   const addDoorStepService = useMutation({
     mutationFn: async (data: any) => {
@@ -101,8 +90,7 @@ const DoorStepService = () => {
         delivery_address: data.delivery_address || data.pickup_address || booking.customers?.address || "",
         estimated_pickup_time: data.estimated_pickup_time ? new Date(data.estimated_pickup_time).toISOString() : null,
         estimated_delivery_time: data.estimated_delivery_time ? new Date(data.estimated_delivery_time).toISOString() : null,
-        assigned_staff_id: data.assigned_staff_id || null,
-        notes: data.notes || null,
+        notes: data.employee_name ? `Employee: ${data.employee_name}\n${data.notes || ""}` : (data.notes || null),
         status: "scheduled"
       });
       if (error) throw error;
@@ -118,7 +106,7 @@ const DoorStepService = () => {
         delivery_address: "",
         estimated_pickup_time: "",
         estimated_delivery_time: "",
-        assigned_staff_id: "",
+        employee_name: "",
         notes: ""
       });
     },
@@ -301,19 +289,13 @@ const DoorStepService = () => {
                 </div>
 
                 <div className="space-y-2">
-                  <Label>Assign Staff</Label>
-                  <Select value={formData.assigned_staff_id} onValueChange={(value) => setFormData({ ...formData, assigned_staff_id: value })}>
-                    <SelectTrigger>
-                      <SelectValue placeholder="Select staff member" />
-                    </SelectTrigger>
-                    <SelectContent>
-                      {staff?.map((s) => (
-                        <SelectItem key={s.id} value={s.id}>
-                          {s.full_name || "Unnamed"} {s.phone && `- ${s.phone}`}
-                        </SelectItem>
-                      ))}
-                    </SelectContent>
-                  </Select>
+                  <Label>Employee Name</Label>
+                  <Input
+                    placeholder="Enter employee name"
+                    value={formData.employee_name}
+                    onChange={(e) => setFormData({ ...formData, employee_name: e.target.value })}
+                  />
+                  <p className="text-xs text-muted-foreground">Manually enter the employee responsible for pickup/delivery</p>
                 </div>
 
                 <div className="space-y-2">
