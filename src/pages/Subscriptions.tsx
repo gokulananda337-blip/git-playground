@@ -32,7 +32,8 @@ export default function Subscriptions() {
     const [subsRes, customersRes, servicesRes] = await Promise.all([
       supabase.from("subscriptions").select("*, customers(name, phone)").eq("user_id", session.session.user.id),
       supabase.from("customers").select("*").eq("user_id", session.session.user.id),
-      supabase.from("services").select("*").eq("user_id", session.session.user.id).eq("is_active", true),
+      // Only fetch subscription type services
+      supabase.from("services").select("*").eq("user_id", session.session.user.id).eq("is_active", true).eq("service_type", "subscription"),
     ]);
 
     if (subsRes.data) setSubscriptions(subsRes.data);

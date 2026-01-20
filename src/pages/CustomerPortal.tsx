@@ -1,5 +1,5 @@
 import { useState, useEffect } from "react";
-import { useNavigate, useSearchParams } from "react-router-dom";
+import { useNavigate, useSearchParams, useParams } from "react-router-dom";
 import { supabase } from "@/integrations/supabase/client";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
@@ -19,6 +19,7 @@ import {
 import { format, addDays, isBefore, startOfDay } from "date-fns";
 import { cn } from "@/lib/utils";
 import jsPDF from "jspdf";
+import { CarWashLoader } from "@/components/CarWashLoader";
 
 interface CustomerData {
   id: string;
@@ -30,6 +31,7 @@ interface CustomerData {
 
 const CustomerPortal = () => {
   const [searchParams] = useSearchParams();
+  const { token: urlToken } = useParams();
   const [customerData, setCustomerData] = useState<CustomerData | null>(null);
   const [jobCards, setJobCards] = useState<any[]>([]);
   const [invoices, setInvoices] = useState<any[]>([]);
@@ -63,7 +65,8 @@ const CustomerPortal = () => {
     notes: ""
   });
 
-  const token = searchParams.get("token");
+  // Get token from URL param (path) or query param
+  const token = urlToken || searchParams.get("token");
 
   useEffect(() => {
     if (!token) {
@@ -365,10 +368,7 @@ const CustomerPortal = () => {
   if (loading) {
     return (
       <div className="min-h-screen bg-background flex items-center justify-center">
-        <div className="text-center">
-          <div className="animate-spin rounded-full h-12 w-12 border-2 border-foreground border-t-transparent mx-auto mb-4"></div>
-          <p className="text-muted-foreground">Loading your portal...</p>
-        </div>
+        <CarWashLoader text="Loading your portal..." />
       </div>
     );
   }

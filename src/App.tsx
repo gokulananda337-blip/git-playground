@@ -12,7 +12,6 @@ import Bookings from "./pages/Bookings";
 import BookingDetail from "./pages/BookingDetail";
 import Invoices from "./pages/Invoices";
 import Reports from "./pages/Reports";
-import Staff from "./pages/Staff";
 import Settings from "./pages/Settings";
 import Inventory from "./pages/Inventory";
 import Branches from "./pages/Branches";
@@ -46,7 +45,6 @@ const App = () => (
           <Route path="/bookings/:id" element={<BookingDetail />} />
           <Route path="/invoices" element={<Invoices />} />
           <Route path="/reports" element={<Reports />} />
-          <Route path="/staff" element={<Staff />} />
           <Route path="/settings" element={<Settings />} />
           <Route path="/inventory" element={<Inventory />} />
           <Route path="/branches" element={<Branches />} />
@@ -56,6 +54,7 @@ const App = () => (
           <Route path="/reviews" element={<Reviews />} />
           <Route path="/customer-portal" element={<CustomerPortal />} />
           <Route path="/portal" element={<CustomerPortal />} />
+          <Route path="/portal/:token" element={<CustomerPortal />} />
           <Route path="/loyalty" element={<LoyaltyProgram />} />
           <Route path="/door-step" element={<DoorStepService />} />
           <Route path="/job-cards" element={<JobCards />} />

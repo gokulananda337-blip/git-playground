@@ -18,6 +18,7 @@ import { Textarea } from "@/components/ui/textarea";
 import { Switch } from "@/components/ui/switch";
 import { Badge } from "@/components/ui/badge";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
+import { cn } from "@/lib/utils";
 
 interface Service {
   id: string;
@@ -320,7 +321,7 @@ const Services = () => {
             <div className="space-y-4">
               <div>
                 <Label>Service Type *</Label>
-                <Select value={formData.service_type} onValueChange={(value: any) => setFormData({ ...formData, service_type: value })}>
+                <Select value={formData.service_type} onValueChange={(value: any) => setFormData({ ...formData, service_type: value, package_services: [] })}>
                   <SelectTrigger className="border-border/50">
                     <SelectValue />
                   </SelectTrigger>
@@ -331,11 +332,85 @@ const Services = () => {
                   </SelectContent>
                 </Select>
                 <p className="text-xs text-muted-foreground mt-1">
-                  {formData.service_type === "subscription" && "Recurring monthly service plan"}
-                  {formData.service_type === "package" && "Combination of multiple services"}
+                  {formData.service_type === "subscription" && "Recurring monthly service plan with validity period"}
+                  {formData.service_type === "package" && "Combination of multiple services bundled together"}
                   {formData.service_type === "service" && "One-time service"}
                 </p>
               </div>
+              
+              {/* Package/Combo: Select services to include */}
+              {formData.service_type === "package" && (
+                <div className="p-4 border rounded-lg bg-muted/20 space-y-3">
+                  <Label className="font-semibold">Select Services to Include (2 or more) *</Label>
+                  <p className="text-xs text-muted-foreground">Choose the services that make up this combo package</p>
+                  <div className="grid gap-2 max-h-48 overflow-y-auto">
+                    {services.filter(s => (s as any).service_type !== "package" && s.id !== selectedService?.id).map((service) => (
+                      <label
+                        key={service.id}
+                        className={cn(
+                          "flex items-center gap-3 p-3 rounded-lg border cursor-pointer transition-all hover:border-primary/50",
+                          formData.package_services.includes(service.id) && "border-primary bg-primary/10"
+                        )}
+                      >
+                        <input
+                          type="checkbox"
+                          checked={formData.package_services.includes(service.id)}
+                          onChange={(e) => {
+                            if (e.target.checked) {
+                              setFormData({ ...formData, package_services: [...formData.package_services, service.id] });
+                            } else {
+                              setFormData({ ...formData, package_services: formData.package_services.filter(id => id !== service.id) });
+                            }
+                          }}
+                          className="rounded"
+                        />
+                        <div className="flex-1">
+                          <span className="font-medium">{service.name}</span>
+                          <span className="text-sm text-muted-foreground ml-2">₹{service.base_price}</span>
+                        </div>
+                      </label>
+                    ))}
+                  </div>
+                  {formData.package_services.length > 0 && (
+                    <p className="text-sm font-medium text-primary">
+                      {formData.package_services.length} services selected
+                    </p>
+                  )}
+                </div>
+              )}
+              
+              {/* Subscription fields */}
+              {formData.service_type === "subscription" && (
+                <div className="p-4 border rounded-lg bg-muted/20 space-y-4">
+                  <Label className="font-semibold">Subscription Details</Label>
+                  <div className="grid grid-cols-2 gap-4">
+                    <div>
+                      <Label>Validity (Days) *</Label>
+                      <Input
+                        type="number"
+                        value={(formData as any).validity_days || 30}
+                        onChange={(e) => setFormData({ ...formData, validity_days: parseInt(e.target.value) } as any)}
+                        placeholder="30"
+                        className="border-border/50"
+                      />
+                    </div>
+                    <div>
+                      <Label>Total Washes *</Label>
+                      <Input
+                        type="number"
+                        value={(formData as any).total_washes || 10}
+                        onChange={(e) => setFormData({ ...formData, total_washes: parseInt(e.target.value) } as any)}
+                        placeholder="10"
+                        className="border-border/50"
+                      />
+                    </div>
+                  </div>
+                  <p className="text-xs text-muted-foreground">
+                    Customers get {(formData as any).total_washes || 10} washes valid for {(formData as any).validity_days || 30} days
+                  </p>
+                </div>
+              )}
+              
               <div>
                 <Label>Service Name *</Label>
                 <Input
